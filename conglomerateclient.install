@@ -1,0 +1,84 @@
+<?php
+// $Id$
+
+function conglomerateclient_install() {
+  drupal_install_schema('conglomerateclient');
+}
+
+function conglomerateclient_schema() {
+  $schema = array();
+
+  $schema['conglomerateclient_server']  = array(
+    'description' => t('Stores information about conglomerate servers'),
+    'fields' => array(
+      'sid' => array(
+        'description' => t('The primary identifier for a server.'),
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'name' => array(
+        'description' => t('The name to display for the server'),
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ),
+      'domain' => array(
+        'description' => t('The server domain'),
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ),
+      'endpoint' => array(
+        'description' => t('The api endpoint for the server'),
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ),
+      'oauth_token_key' => array(
+        'description' => t('The OAuth token to use when communicating with the server'),
+        'type'        => 'varchar',
+        'length'      => 32,
+        'not null'    => TRUE,
+      ),
+    ),
+    'primary key' => array('sid'),
+  );
+
+  $schema['conglomerateclient_sync_state'] = array(
+    'description' => t('Stores synchronization state for nodes'),
+    'fields' => array(
+      'sid' => array(
+        'description' => t('The primary identifier for a server.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'nid' => array(
+        'description' => t('The primary identifier for a node.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'state' => array(
+        'description' => t('The synchronization state'),
+        'type'        => 'int',
+        'size'        => 'small',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'updated' => array(
+        'description' => t('The Unix timestamp when the syncrinization state was changed.'),
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('sid', 'nid'),
+    'indexes' => array(
+      'state' => ('sid', 'state'),
+    ),
+  );
+
+  return $schema;
+}
