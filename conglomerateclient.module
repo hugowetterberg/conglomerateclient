@@ -9,3 +9,13 @@ define('CONGLOMERATE_NODE_REMOVED', 2);
 function conglomerateclient_perm() {
   return array('administer conglomerate client');
 }
+
+/**
+ * Implementation of hook_views_api().
+ */
+function conglomerateclient_views_api() {
+  return array(
+    'api' => 2,
+    'path' => drupal_get_path('module', 'conglomerateclient') . '/views',
+  );
+}
