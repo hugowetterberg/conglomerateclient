@@ -76,7 +76,7 @@ function conglomerateclient_schema() {
     ),
     'primary key' => array('sid', 'nid'),
     'indexes' => array(
-      'state' => ('sid', 'state'),
+      'state' => array('sid', 'state'),
     ),
   );
 
