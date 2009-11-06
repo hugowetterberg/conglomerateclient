@@ -10,6 +10,9 @@ define('CONGLOMERATE_TYPE_NONE', 'none');
 define('CONGLOMERATE_TYPE_POST', 'post');
 define('CONGLOMERATE_TYPE_EVENT', 'event');
 
+/**
+ * Implementation of hook_perm().
+ */
 function conglomerateclient_perm() {
   return array('administer conglomerate client');
 }
