@@ -42,10 +42,19 @@ class conglomerate_plugin_display_sync extends views_plugin_display {
       'title' => t('Synchronization'),
     );
 
+    $type = $this->get_option('type');
+    if (!empty($type)) {
+      $content_types = node_get_types();
+      $type = $content_types[$type]->name;
+    }
+    else {
+      $type = t('None');
+    }
+
     $options['type'] = array(
       'category' => 'type',
       'title' => t('Content type'),
-      'value' => t('None'),
+      'value' => $type,
     );
   }
 
@@ -55,6 +64,11 @@ class conglomerate_plugin_display_sync extends views_plugin_display {
   function options_form(&$form, &$form_state) {
     parent::options_form($form, $form_state);
 
+    $content_types = array('');
+    foreach (node_get_types() as $type) {
+      $content_types[$type->type] = $type->name;
+    }
+
     switch ($form_state['section']) {
       case 'type':
         $form['#title'] .= t('Map this display against a type');
@@ -62,32 +76,8 @@ class conglomerate_plugin_display_sync extends views_plugin_display {
           '#type' => 'select',
           '#description' => t('This is used to map local content types against remote ones.'),
           '#default_value' => $this->get_option('type'),
-		  '#options' => array(
-			CONGLOMERATE_TYPE_NONE => '',
-			CONGLOMERATE_TYPE_POST => t('Post'),
-			CONGLOMERATE_TYPE_EVENT => t('Event'),
-		  ),
+          '#options' => $content_types,
         );
-        break;
-    }
-  }
-
-  function options_validate($form, &$form_state) {
-    parent::options_validate($form, $form_state);
-
-    switch ($form_state['section']) {
-      case 'type':
-        if (strpos($form_state['values']['type'], '$arg') !== FALSE) {
-          form_error($form['type'], t('"$arg" is no longer supported. Use % instead.'));
-        }
-
-        if (strpos($form_state['values']['type'], '%') === 0) {
-          form_error($form['type'], t('"%" may not be used for the first segment of a path.'));
-        }
-
-        // automatically remove '/' from path.
-        $form_state['values']['type'] = trim($form_state['values']['type'], '/');
-
         break;
     }
   }
