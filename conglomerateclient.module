@@ -17,6 +17,39 @@ function conglomerateclient_perm() {
   return array('administer conglomerate client');
 }
 
+function conglomerateclient_menu() {
+  $menu = array();
+
+  $menu['admin/settings/conglomerateclient'] = array(
+    'title'   => 'Conglomerate client settings',
+    'description' => 'Administer the settings for the conglomerate client',
+    'type'    => MENU_DEFAULT_LOCAL_TASK,
+    'weight'  => -10,
+  );
+
+  $menu['admin/settings/conglomerateclient/index'] = array(
+    'title' => 'Index',
+    'file'  => 'includes/admin.inc',
+    'page callback' => '_conglomerateclient_admin_index',
+  );
+
+  return $menu;
+}
+
+function conglomerateclient_theme() {
+  $themes = array();
+
+  $themes['conglomerateclient_admin_index'] = array(
+    'template' => 'conglomerateclient_admin_index',
+    'arguments' => array(
+      'servers' => array(),
+      'messages' => array(),
+    ),
+  );
+
+  return $themes;
+}
+
 /**
  * Implementation of hook_views_api().
  */
