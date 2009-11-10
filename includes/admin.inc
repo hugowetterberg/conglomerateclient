@@ -115,24 +115,37 @@ function _conglomerateclient_admin_add_server_submit($form, $form_state) {
  */
 function _conglomerateclient_write_server_tokens($values) {
   // Save a consumer token so that we can get the secret later
-  oauth_common_write_consumer_token($values['consumer_key'], $values['consumer_secret']);
-
-  // Save or update the access token
-  $token = DrupalOAuthToken::load($values['access_key']);
-  if ($token) {
-    // Correct the secret if needed
-    if ($token->secret !== $values['access_secret']) {
-      $token->secret = $values['access_secret'];
-      $token->write(TRUE);
-    }
+  $c_token = DrupalOAuthConsumerToken::load($values['consumer_key']);
+  if ($c_token) {
+    $c_token->secret = $values['consumer_secret'];
+    $c_token->provider_url = $values['url'];
+    $c_token->write(TRUE);
   }
   else {
-    // Create the secret if it doesn't exist
-    $token = new DrupalOAuthToken($values['access_key'], $values['access_secret']);
-    $token->provider_token = TRUE;
-    $token->consumer_key = $values['consumer_key'];
-    $token->type = 'access';
-    $token->uid = $user->uid;
-    $token->write();
+    $c_token = new DrupalOAuthConsumerToken($values['consumer_key'], $values['consumer_secret'], array(
+      'provider_url' => $values['url'],
+    ));
+    $c_token->write();
+  }
+
+  // Save or update the access token
+  if (!empty($values['access_key']) && !empty($values['access_secret'])) {
+    $token = DrupalOAuthToken::load($values['access_key']);
+    if ($token) {
+      // Correct the secret if needed
+      if ($token->secret !== $values['access_secret']) {
+        $token->secret = $values['access_secret'];
+        $token->write(TRUE);
+      }
+    }
+    else {
+      // Create the secret if it doesn't exist
+      $token = new DrupalOAuthToken($values['access_key'], $values['access_secret']);
+      $token->provider_token = FALSE;
+      $token->consumer_key = $values['consumer_key'];
+      $token->type = 'access';
+      $token->uid = $user->uid;
+      $token->write();
+    }
   }
 }

@@ -44,6 +44,14 @@ function conglomerateclient_menu() {
     'type'    => MENU_LOCAL_TASK,
   );
 
+  $menu['admin/settings/conglomerateclient/authorize/%'] = array(
+    'file'  => 'includes/authorization.inc',
+    'page callback' => '_conglomerateclient_authorize_for_server',
+    'page arguments' => array(4),
+    'access arguments' => array('adminster conglomerate client'),
+    'type'    => MENU_CALLBACK,
+  );
+
   return $menu;
 }
 
@@ -73,6 +81,28 @@ function conglomerateclient_views_api() {
 }
 
 /**
+ * Implementation of hook_oauth_common_authorized().
+ */
+function conglomerateclient_oauth_common_authorized($consumer_token, $access_token, $request_token) {
+  if (user_access('adminster conglomerate client')) {
+    $res = db_query("SELECT * FROM {conglomerateclient_server}
+      WHERE oauth_consumer='%s'", array(
+        ':oauth_consumer' => $consumer_token->key,
+      ));
+    $server = db_fetch_array($res);
+
+    // If it we got a access token for one of our consumers
+    if ($server) {
+      // Update the server with the access token key and redirect to
+      // the conglomerateclient index page.
+      $server['oauth_token_key'] = $access_token->key;
+      drupal_write_record('conglomerateclient_server', $server, array('sid'));
+      drupal_goto('admin/settings/conglomerateclient/index');
+    }
+  }
+}
+
+/**
  * Gets the registered conglomerate servers on the system.
  *
  * @return array
@@ -82,7 +112,6 @@ function conglomerateclient_get_servers() {
   $servers = array();
   $res = db_query("SELECT * FROM {conglomerateclient_server}");
   while ($server = db_fetch_array($res)) {
-    $server['access'] =
     $servers[$server['sid']] = $server;
   }
   return $servers;
