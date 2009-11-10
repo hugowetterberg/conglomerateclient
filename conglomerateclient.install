@@ -23,8 +23,8 @@ function conglomerateclient_schema() {
         'length' => 255,
         'not null' => TRUE,
       ),
-      'domain' => array(
-        'description' => t('The server domain'),
+      'url' => array(
+        'description' => t('A url to the server'),
         'type' => 'varchar',
         'length' => 255,
         'not null' => TRUE,
@@ -34,6 +34,12 @@ function conglomerateclient_schema() {
         'type' => 'varchar',
         'length' => 255,
         'not null' => TRUE,
+      ),
+      'oauth_consumer' => array(
+        'description' => t('The OAuth consumer to use when communicating with the server'),
+        'type'        => 'varchar',
+        'length'      => 32,
+        'not null'    => TRUE,
       ),
       'oauth_token_key' => array(
         'description' => t('The OAuth token to use when communicating with the server'),
