@@ -1,14 +1,14 @@
 <?php
 // $Id$
 
-define('CONGLOMERATE_SYNCHRONIZED', 0);
-define('CONGLOMERATE_NODE_ADDED', 1);
-define('CONGLOMERATE_NODE_UPDATED', 2);
-define('CONGLOMERATE_NODE_REMOVED', 2);
+define('CONGLOMERATE_CREATE', 'create');
+define('CONGLOMERATE_UPDATE', 'update');
+define('CONGLOMERATE_DELETE', 'delete');
 
 define('CONGLOMERATE_TYPE_NONE', 'none');
 define('CONGLOMERATE_TYPE_POST', 'post');
 define('CONGLOMERATE_TYPE_EVENT', 'event');
+define('CONGLOMERATE_TYPE_LOCATION', 'location');
 
 /**
  * Implementation of hook_perm().
@@ -24,5 +24,361 @@ function conglomerateclient_views_api() {
   return array(
     'api' => 2,
     'path' => drupal_get_path('module', 'conglomerateclient') . '/views',
+  );
+}
+
+/**
+ * Gets the registered conglomerate servers on the system.
+ *
+ * @return array
+ *  An array withe server information keyed by site id.
+ */
+function conglomerateclient_get_servers() {
+  $servers = array();
+  $res = db_query("SELECT * FROM {conglomerateclient_server}");
+  while ($server = db_fetch_array($res)) {
+    $servers[$servier['sid']] = $server;
+  }
+  return $servers;
+}
+
+/**
+ * Get the node synchronization state for a node. You can get the state either
+ * for a single or many conglomerate servers.
+ *
+ * @param string $nid
+ *  The nid of the node to load state for.
+ * @param int $sid
+ *  Optional. The conglomerate site to load state for.
+ * @return bool
+ *  An array of synchronization states keyed after site id
+ */
+function conglomerateclient_get_node_sync_info($nid, $sid = 0) {
+  $state = array();
+
+  if (!$sid) { // Load state for all conglomerate servers
+    $res = db_query("SELECT *
+      FROM {conglomerateclient_sync_info}
+      WHERE nid=%d", array(
+        ':nid' => $nid,
+    ));
+    if ($r = db_fetch_array($res)) {
+      $state[$r['sid']] = $r;
+    }
+  }
+  else { // Load state for a specific conglomerate server
+    $res = db_query("SELECT *
+      FROM {conglomerateclient_sync_info}
+      WHERE nid=%d AND sid=%d", array(
+        ':nid' => $nid,
+        ':sid' => $sid,
+    ));
+    if ($r = db_fetch_array($res)) {
+      $state[$sid] = $r;
+    }
+  }
+
+  return $state;
+}
+
+/**
+ * Creates or updates the synchronization information for a node.
+ *
+ * @param string $nid
+ *  The nid of the node to set the synchronization information for.
+ * @param string $sid
+ *  The site id of the synchronization information.
+ * @param string $eid
+ *  Optional. The nid of the node on the conglomerate site.
+ * @return void
+ */
+function conglomerateclient_set_node_sync_info($nid, $sid, $eid = 0) {
+  $rv = conglomerateclient_get_servers();
+  $current = conglomerateclient_get_node_sync_info($node->nid, $sid);
+  $update = empty($current) ? NULL : array('sid', 'nid');
+
+  $state = array(
+    'nid' => $nid,
+    'sid' => $sid,
+    'updated' => time(),
+  );
+  if ($eid) {
+    $state['eid'] = $eid;
+  }
+
+  drupal_write_record('conglomerateclient_sync_info', $state, $update)
+}
+
+/**
+ * Deletes synchronization information for a node.
+ *
+ * @param string $nid
+ *  The nid of the node to remove the synchronization information for.
+ * @param string $sid
+ *  The site id of the synchronization information.
+ * @return void
+ */
+function conglomerateclient_delete_node_sync_info($nid, $sid) {
+  db_query("DELETE FROM {conglomerateclient_sync_info} WHERE nid=%d AND sid=%d", array(
+      ':nid' => $nid,
+      ':sid' => $sid,
+    ));
+}
+
+/**
+ * Implementation of hook_nodeapi().
+ **/
+function conglomerateclient_nodeapi(&$node, $op, $a3 = NULL, $page = NULL) {
+  switch ($op) {
+    case 'delete':
+    case 'insert':
+    case 'update': // TODO: Check that revision delete results in a update call
+      // We just mark the node as dirty here. We can't be sure that all node
+      // information has been saved. Therefore we can't execute the
+      // aggregation selection views.
+      conglomerateclient_mark_node_as_dirty($node->nid);
+    break;
+  }
+}
+
+/**
+ * Marks a node as dirty.
+ *
+ * @param int $nid
+ *  The nid of the node that should be queued.
+ * @return array
+ *  An array of nodes that have been marked as dirty during this request.
+ */
+function conglomerateclient_mark_node_as_dirty($nid = NULL) {
+  global $db_type;
+  static $queue = array();
+
+  if ($nid) {
+    // Queue the node so that we can sync it on exit
+    $queue[] = $nid;
+
+    if ($db_type == 'mysql') {
+      // We can do the insert in one statement if we're on mysql
+      db_query("INSERT INTO {conglomerateclient_node_dirty} VALUES(%d)
+        ON DUPLICATE KEY IGNORE", array(':nid' => $nid));
+    }
+    else {
+      // Check if we need to do a insert before adding a dirty flag
+      $exists = db_result(db_query("SELECT COUNT(nid)
+        FROM {conglomerateclient_node_dirty} WHERE nid=%d",array(
+          ':nid' => $nid,
+        )));
+      if (!$exists) {
+        db_query("INSERT INTO {conglomerateclient_node_dirty} VALUES(%d)", array(':nid' => $nid));
+      }
+    }
+  }
+
+  return $queue;
+}
+
+function conglomerateclient_get_dirty_nodes($limit = 0) {
+  if ($limit) {
+    $res = db_query_range("SELECT nid FROM {conglomerateclient_node_dirty}", 0, $limit);
+  }
+  else {
+    $res = db_query_range("SELECT nid FROM {conglomerateclient_node_dirty}");
+  }
+
+  $dirty = array();
+  while ($nid = db_result($res)) {
+    $dirty[] = $nid;
+  }
+
+  return $dirty;
+}
+
+/**
+ * Processes nodes to check if updates should be sent to the servers.
+ * Nodes that should be synchronized are appended to the work queue.
+ *
+ * @param array $nodes
+ *  An array of nid:s for the nodes that should be updated.
+ * @return void
+ */
+function conglomerateclient_process_nodes($nodes) {
+  foreach ($nodes as $nid) {
+    $sync = conglomerateclient_evaluate_node($nid);
+    $status = conglomerateclient_get_node_sync_info($nid);
+
+    // Queue updates and deletes
+    foreach ($sync as $sid => $data) {
+      if (isset($status[$sid])) {
+        conglomerateclient_queue_operation($nid, $sid, 'update', $data);
+      }
+      else {
+        conglomerateclient_set_node_sync_info($nid, $sid)
+        conglomerateclient_queue_operation($nid, $sid, 'create', $data);
+      }
+    }
+    // Queue deletes
+    foreach ($status as $sid => $info) {
+      if (!isset($sync[$sid])) {
+        conglomerateclient_delete_node_sync_info($nid, $sid);
+        conglomerateclient_queue_operation($nid, $sid, 'delete', NULL);
+      }
+    }
+  }
+  // Remove the dirty state for queued nodes
+  if (!empty($nodes)) {
+    $placeholders = db_placeholders($nodes);
+    db_query("DELETE FROM {conglomerateclient_node_dirty}
+      WHERE nid IN({$placeholders})", $nodes);
+  }
+}
+
+/**
+ * Adds a synchronization operation to the queue.
+ *
+ * @param int $nid
+ * @param int $sid
+ * @param string $operation
+ * @param mixed $data
+ * @return void
+ */
+function conglomerateclient_queue_operation($nid, $sid, $operation, $data) {
+  $values = array(
+    'sid' => $sid,
+    'nid' => $nid,
+    'operation' => $operation,
+    'data' => $data,
+    'added' => time(),
+  );
+  drupal_write_record($values);
+}
+
+function conglomerateclient_sync_nodes($nodes) {
+  $placeholders = db_placeholders($nodes);
+
+  db_lock_table('conglomerateclient_sync_info');
+  $res = db_query("SELECT q.* FROM {conglomerateclient_queue} AS q
+    INNER JOIN {conglomerateclient_sync_info} AS i ON (i.sid=q.sid AND i.nid=q.nid)
+    WHERE q.nid IN({$placeholders}) AND i.in_progress = 0
+    ORDER BY q.sid, q.nid, q.added", $nodes);
+
+  $in_progress = array();
+  $sync = array();
+  while ($a = db_fetch_array($res)) {
+    $sync[$a['sid']][$a['nid']][] = $a;
+  }
+
+  // Mark the nodes as in-progress
+  foreach ($sync as $sid => $updates) {
+    $params = array_keys($updates);
+    $placeholders = db_placeholders($params);
+    array_unshift($params, $sid);
+    db_query("UPDATE {conglomerateclient_sync_info} SET in_progress = 1
+      WHERE sid=%s AND nid IN({$placeholders})", $params);
+  }
+  db_unlock_tables();
+
+  // Run through and execute the queued operations
+  foreach ($sync as $sid => $updates) {
+    foreach ($updates as $nid => $ops) {
+      // Remove redundant operations
+      _conglomerateclient_compress_node_ops($ops);
+
+      $last_success = FALSE;
+      for ($i=0; $i<count($ops); $i++)
+        if ($ops[$i]) {
+          $success = _conglogemerateclient_perform_operation($sid, $nid, $ops[$i]);
+          if (!$success) {
+            if ($last_success !== FALSE) {
+              $sync[$sid][$nid] = array_slice($sync[$sid][$nid], 0, $last_success+1);
+            }
+            else {
+              unset($sync[$sid][$nid]);
+            }
+          }
+          else {
+            $last_success = $i;
+          }
+        }
+      }
+    }
+  }
+
+  // Collect the id:s of the successful operations.
+  $opids = array();
+  foreach ($sync as $sid => $updates) {
+    foreach ($updates as $nid => $ops) {
+      foreach ($ops as $op) {
+        $opids[] = $op['id'];
+      }
+    }
+  }
+  // Delete the operations that were successful.
+  $placeholders = db_placeholders($opids);
+  db_query("DELETE FROM {conglomerateclient_queue}
+    WHERE id IN({$placeholders})", $placeholders);
+
+  db_lock_table('conglomerateclient_sync_info');
+  // Mark the nodes as processed
+  foreach ($sync as $sid => $updates) {
+    $params = array_keys($updates);
+    $placeholders = db_placeholders($params);
+    array_unshift($params, $sid);
+    db_query("UPDATE {conglomerateclient_sync_info} SET in_progress = 0
+      WHERE sid=%s AND nid IN({$placeholders})", $params);
+  }
+  db_unlock_tables();
+}
+
+/**
+ * The task of this function is to remove unnecessary operations. Multiple
+ * consequetive updates can be reduced to just the last update. Updates
+ * preceding a delete can be skipped altogether.
+ *
+ * @param array $ops
+ * @return void
+ */
+function _conglomerateclient_compress_node_ops(&$ops) {
+  $last_op = FALSE;
+  for ($i=0; $i<count($ops); $i++) {
+    if ($ops[$i]['operation'] == 'delete' || $ops[$i]['operation'] == 'update') {
+      if ($last_op == 'update') {
+        $ops[$i-1] = NULL;
+      }
+    }
+    $last_op = $ops[$i]['operation'];
+  }
+}
+
+function conglomerateclient_exit() {
+  // Get the nodes that have been marked as dirty during this request
+  $dirty = conglomerateclient_mark_node_as_dirty();
+  if (!empty($dirty)) {
+    $max_ad_hoc = variable_get('conglomerateclient_maximum_adhoc_updates', 3);
+    if (count($dirty)>$max_ad_hoc) {
+      $dirty = array_slice($dirty, 0, $max_ad_hoc);
+    }
+    conglomerateclient_process_nodes($dirty);
+    conglomerateclient_sync_nodes($dirty);
+  }
+}
+
+function conglomerateclient_cron() {
+  $max_updates = variable_get('conglomerateclient_maximum_cron_updates', 20);
+  $dirty = conglomerateclient_get_dirty_nodes($max_updates);
+  conglomerateclient_process_nodes($dirty);
+  conglomerateclient_sync_nodes($dirty);
+}
+
+function conglomerateclient_evaluate_node($nid) {
+  $node = node_load($nid);
+  $sid = 1;
+  return array(
+    $sid => array(
+      'type' => 'CONGLOMERATE_TYPE_POST',
+      'title' => $node->title,
+      'text' => $node->field_teaser[0]['value'],
+      'position' => $node->simple_geo_position,
+      'picture' => $node->field_images[0]['filepath'],
+    ),
   );
 }

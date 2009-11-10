@@ -45,7 +45,67 @@ function conglomerateclient_schema() {
     'primary key' => array('sid'),
   );
 
-  $schema['conglomerateclient_sync_state'] = array(
+  $schema['conglomerateclient_queue'] = array(
+    'description' => t('Stores a operation queue for the client'),
+    'fields' => array(
+      'id' => array(
+        'description' => t('The primary identifier for a queue item.'),
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'sid' => array(
+        'description' => t('The primary identifier for the target site.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'added' => array(
+        'description' => t('The Unix timestamp when the item was added.'),
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'operation' => array(
+        'description' => t('The synchronization operation'),
+        'type'        => 'varchar',
+        'length'      => 10,
+        'not null'    => TRUE,
+        'default'     => 'create',
+      ),
+      'data' => array(
+        'description' => t('The serialized data that should be sent to the server'),
+        'type' => 'text',
+        'serialize' => TRUE,
+      ),
+      'fail_count' => array(
+        'description' => t('The number of times the operation has failed.'),
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('id'),
+    'indexes' => array(
+      'site' => array('sid'),
+      'node' => array('nid'),
+      'exec_order' => array('sid', 'nid', 'added'),
+    ),
+  );
+
+  $schema['conglomerateclient_node_dirty'] = array(
+    'description' => t('Stores the dirty state for nodes'),
+    'fields' => array(
+      'nid' => array(
+        'description' => t('The primary identifier for a node.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+    ),
+  );
+
+  $schema['conglomerateclient_sync_info'] = array(
     'description' => t('Stores synchronization state for nodes'),
     'fields' => array(
       'sid' => array(
@@ -60,15 +120,23 @@ function conglomerateclient_schema() {
         'unsigned' => TRUE,
         'not null' => TRUE,
       ),
-      'state' => array(
-        'description' => t('The synchronization state'),
-        'type'        => 'int',
-        'size'        => 'small',
+      'eid' => array(
+        'description' => t('The external identifier for the node on the server.'),
+        'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE,
+        'default' => 0,
+      ),
+      'in_progress' => array(
+        'description' => t('Whether the node is currently being synchronized.'),
+        'type'        => 'int',
+        'size'        => 'small',
+        'unsigned'    => TRUE,
+        'not null'    => TRUE,
+        'default'     => FALSE,
       ),
       'updated' => array(
-        'description' => t('The Unix timestamp when the syncrinization state was changed.'),
+        'description' => t('The Unix timestamp when the synchronization state was updated.'),
         'type' => 'int',
         'not null' => TRUE,
         'default' => 0,
@@ -76,7 +144,7 @@ function conglomerateclient_schema() {
     ),
     'primary key' => array('sid', 'nid'),
     'indexes' => array(
-      'state' => array('sid', 'state'),
+      'node' => array('nid'),
     ),
   );
 
