@@ -24,23 +24,35 @@ function conglomerateclient_menu() {
     'title'   => 'Conglomerate client settings',
     'description' => 'Administer the settings for the conglomerate client',
     'type'    => MENU_DEFAULT_LOCAL_TASK,
-    'weight'  => -10,
   );
 
   $menu['admin/settings/conglomerateclient/index'] = array(
-    'title' => 'Index',
+    'title' => 'Conglomerate servers',
     'file'  => 'includes/admin.inc',
     'page callback' => '_conglomerateclient_admin_index',
+    'access arguments' => array('adminster conglomerate client'),
+    'type'    => MENU_LOCAL_TASK,
+    'weight'  => -10,
+  );
+
+  $menu['admin/settings/conglomerateclient/add_server'] = array(
+    'title' => 'Add server',
+    'file'  => 'includes/admin.inc',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('_conglomerateclient_admin_add_server'),
+    'access arguments' => array('adminster conglomerate client'),
+    'type'    => MENU_LOCAL_TASK,
   );
 
   return $menu;
 }
 
-function conglomerateclient_theme() {
+function conglomerateclient_theme($existing, $type, $theme, $path) {
   $themes = array();
 
   $themes['conglomerateclient_admin_index'] = array(
     'template' => 'conglomerateclient_admin_index',
+    'path' => $path . '/templates',
     'arguments' => array(
       'servers' => array(),
       'messages' => array(),
@@ -70,9 +82,67 @@ function conglomerateclient_get_servers() {
   $servers = array();
   $res = db_query("SELECT * FROM {conglomerateclient_server}");
   while ($server = db_fetch_array($res)) {
-    $servers[$servier['sid']] = $server;
+    $server['access'] =
+    $servers[$server['sid']] = $server;
   }
   return $servers;
+}
+
+/**
+ * Adds a conglomerate server
+ *
+ * @param string $name
+ *  The name of the server.
+ * @param string $url
+ *  A url to the server. Typically to the front page.
+ * @param string $endpoint
+ *  The endpoint for the api on the server.
+ * @param string $consumer_key
+ *  The key for the consumer to use when communicating with the server.
+ * @param string $access_key
+ *  The key for the access token to use when communicating with the server.
+ * @return int
+ *  The id of the created server
+ */
+function conglomerateclient_add_server($name, $url, $endpoint, $consumer_key, $access_key) {
+  $values = array(
+    'name' => $name,
+    'url' => $url,
+    'endpoint' => $endpoint,
+    'oauth_consumer' => $consumer_key,
+    'oauth_token_key' => $access_key,
+  );
+  drupal_write_record('conglomerateclient_server', $values);
+  return db_last_insert_id('conglomerateclient_server', 'sid');
+}
+
+/**
+ * Updates a conglomerate server
+ *
+ * @param int $sid
+ *  The id of the server to update.
+ * @param string $name
+ *  The name of the server.
+ * @param string $url
+ *  A url to the server. Typically to the front page.
+ * @param string $endpoint
+ *  The endpoint for the api on the server.
+ * @param string $consumer_key
+ *  The key for the consumer to use when communicating with the server.
+ * @param string $access_key
+ *  The key for the access token to use when communicating with the server.
+ * @return void
+ */
+function conglomerateclient_update_server($sid, $name, $url, $endpoint, $consumer_key, $access_key) {
+  $values = array(
+    'sid' => $sid,
+    'name' => $name,
+    'url' => $url,
+    'endpoint' => $endpoint,
+    'oauth_consumer' => $consumer_key,
+    'oauth_token_key' => $access_key,
+  );
+  drupal_write_record('conglomerateclient_server', $values, array('sid'));
 }
 
 /**
@@ -139,7 +209,7 @@ function conglomerateclient_set_node_sync_info($nid, $sid, $eid = 0) {
     $state['eid'] = $eid;
   }
 
-  drupal_write_record('conglomerateclient_sync_info', $state, $update)
+  drupal_write_record('conglomerateclient_sync_info', $state, $update);
 }
 
 /**
@@ -223,7 +293,7 @@ function conglomerateclient_get_dirty_nodes($limit = 0) {
     $dirty[] = $nid;
   }
 
-  return $dirty;
+  return $dirty;
 }
 
 /**
@@ -245,7 +315,7 @@ function conglomerateclient_process_nodes($nodes) {
         conglomerateclient_queue_operation($nid, $sid, 'update', $data);
       }
       else {
-        conglomerateclient_set_node_sync_info($nid, $sid)
+        conglomerateclient_set_node_sync_info($nid, $sid);
         conglomerateclient_queue_operation($nid, $sid, 'create', $data);
       }
     }
@@ -317,7 +387,7 @@ function conglomerateclient_sync_nodes($nodes) {
       _conglomerateclient_compress_node_ops($ops);
 
       $last_success = FALSE;
-      for ($i=0; $i<count($ops); $i++)
+      for ($i=0; $i<count($ops); $i++) {
         if ($ops[$i]) {
           $success = _conglogemerateclient_perform_operation($sid, $nid, $ops[$i]);
           if (!$success) {
