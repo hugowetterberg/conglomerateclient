@@ -17,6 +17,9 @@ function conglomerateclient_perm() {
   return array('administer conglomerate client');
 }
 
+/**
+ * Implementation of hook_menu().
+ */
 function conglomerateclient_menu() {
   $menu = array();
 
@@ -55,6 +58,9 @@ function conglomerateclient_menu() {
   return $menu;
 }
 
+/**
+ * Implementation of hook_theme().
+ */
 function conglomerateclient_theme($existing, $type, $theme, $path) {
   $themes = array();
 
