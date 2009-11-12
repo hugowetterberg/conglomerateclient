@@ -9,7 +9,7 @@
  *
  * @ingroup views_display_plugins
  */
-class conglomerate_plugin_display_sync extends views_plugin_display {
+class conglomerateclient_plugin_display_sync extends views_plugin_display {
 
   /**
    * Determine if this display is the 'default' display which contains
