@@ -507,8 +507,23 @@ function conglomerateclient_cron() {
   conglomerateclient_sync_nodes($dirty);
 }
 
+/**
+ * Filter node through view to determine if and what to synchronize.
+ */
 function conglomerateclient_evaluate_node($nid) {
-  $node = node_load($nid);
+  if (!$node = node_load($nid)) return array();
+
+  foreach (views_get_all_views() as $view) {
+    foreach ($view->display as $display_id => $display) {
+      if ($display->display_plugin != 'sync') continue;
+      if ($display->display_options['type'] == $node->type) {
+        $view->execute_display($display_id, array($node->nid));
+        $result = reset($view->result);
+        break 2;
+      }
+    }
+  }
+
   $sid = 1;
   return array(
     $sid => array(
