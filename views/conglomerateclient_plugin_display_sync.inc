@@ -11,6 +11,20 @@
  */
 class conglomerateclient_plugin_display_sync extends views_plugin_display {
 
+  private $conglomerate_types = array();
+
+  /**
+   * Constructor method.
+   */
+  public function __construct() {
+    $this->conglomerate_types = array(
+      CONGLOMERATE_TYPE_NONE => t('None'),
+      CONGLOMERATE_TYPE_POST => t('Post'),
+      CONGLOMERATE_TYPE_EVENT => t('Event'),
+      CONGLOMERATE_TYPE_LOCATION => t('Location'),
+    );
+  }
+
   /**
    * Determine if this display is the 'default' display which contains
    * fallback settings
@@ -26,7 +40,8 @@ class conglomerateclient_plugin_display_sync extends views_plugin_display {
 
   function option_definition() {
     $options = parent::option_definition();
-    $options['path'] = array('default' => CONGLOMERATE_TYPE_NONE);
+    $options['content_type'] = array('default' => '');
+    $options['server_type'] = array('default' => CONGLOMERATE_TYPE_NONE);
     return $options;
   }
 
@@ -38,23 +53,31 @@ class conglomerateclient_plugin_display_sync extends views_plugin_display {
   function options_summary(&$categories, &$options) {
     parent::options_summary($categories, $options);
 
-    $categories['type'] = array(
+    $categories['synchronization'] = array(
       'title' => t('Synchronization'),
     );
 
-    $type = $this->get_option('type');
-    if (!empty($type)) {
+    $content_type = $this->get_option('content_type');
+    if (!empty($content_type)) {
       $content_types = node_get_types();
-      $type = $content_types[$type]->name;
+      $content_type = $content_types[$content_type]->name;
     }
     else {
-      $type = t('None');
+      $content_type = t('None');
     }
 
-    $options['type'] = array(
-      'category' => 'type',
+    $options['content_type'] = array(
+      'category' => 'synchronization',
       'title' => t('Content type'),
-      'value' => $type,
+      'value' => $content_type,
+    );
+
+    $server_type = $this->get_option('server_type');
+
+    $options['server_type'] = array(
+      'category' => 'synchronization',
+      'title' => t('Server type'),
+      'value' => $this->conglomerate_types[$server_type],
     );
   }
 
@@ -65,18 +88,27 @@ class conglomerateclient_plugin_display_sync extends views_plugin_display {
     parent::options_form($form, $form_state);
 
     $content_types = array('');
-    foreach (node_get_types() as $type) {
-      $content_types[$type->type] = $type->name;
+    foreach (node_get_types() as $content_type) {
+      $content_types[$content_type->type] = $content_type->name;
     }
 
     switch ($form_state['section']) {
-      case 'type':
+      case 'content_type':
         $form['#title'] .= t('Map this display against a type');
-        $form['type'] = array(
+        $form['content_type'] = array(
           '#type' => 'select',
-          '#description' => t('This is used to map local content types against remote ones.'),
-          '#default_value' => $this->get_option('type'),
+          '#description' => t("Select what local content type you want to use this display to be used for."),
+          '#default_value' => $this->get_option('content_type'),
           '#options' => $content_types,
+        );
+        break;
+      case 'server_type':
+        $form['#title'] .= t('Map this display against a type');
+        $form['server_type'] = array(
+          '#type' => 'select',
+          '#description' => t("Select the type to be relayed to the server."),
+          '#default_value' => $this->get_option('server_type'),
+          '#options' => $this->conglomerate_types,
         );
         break;
     }
@@ -86,8 +118,11 @@ class conglomerateclient_plugin_display_sync extends views_plugin_display {
     parent::options_submit($form, $form_state);
 
     switch ($form_state['section']) {
-      case 'type':
-        $this->set_option('type', $form_state['values']['type']);
+      case 'content_type':
+        $this->set_option('content_type', $form_state['values']['content_type']);
+        break;
+      case 'server_type':
+        $this->set_option('server_type', $form_state['values']['server_type']);
         break;
     }
   }
@@ -95,9 +130,14 @@ class conglomerateclient_plugin_display_sync extends views_plugin_display {
   function validate() {
     $errors = parent::validate();
 
-    $type = $this->get_option('type');
-    if (empty($type) || $type == CONGLOMERATE_TYPE_NONE) {
-      $errors[] = t('Display @display does not have a valid synchronization type defined.', array('@display' => $this->display->display_title));
+    $content_type = $this->get_option('content_type');
+    if (empty($content_type)) {
+      $errors[] = t('Display @display does not have a valid Content type defined for synchronization.', array('@display' => $this->display->display_title));
+    }
+
+    $server_type = $this->get_option('server_type');
+    if (empty($server_type) || $server_type == CONGLOMERATE_TYPE_NONE) {
+      $errors[] = t('Display @display does not have a valid Server type defined for  synchronization.', array('@display' => $this->display->display_title));
     }
 
     return $errors;
