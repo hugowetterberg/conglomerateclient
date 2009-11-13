@@ -104,6 +104,7 @@ function _conglomerateclient_admin_add_server_submit($form, $form_state) {
   conglomerateclient_add_server($values['name'], $values['url'], $values['endpoint'], $values['consumer_key'], $values['access_key']);
   _conglomerateclient_write_server_tokens($values);
   drupal_set_message(t('The server was added'), 'info');
+  drupal_goto('admin/settings/conglomerateclient/index');
 }
 
 /**
