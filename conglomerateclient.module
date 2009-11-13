@@ -17,6 +17,9 @@ function conglomerateclient_perm() {
   return array('administer conglomerate client');
 }
 
+/**
+ * Implementation of hook_menu().
+ */
 function conglomerateclient_menu() {
   $menu = array();
 
@@ -55,6 +58,9 @@ function conglomerateclient_menu() {
   return $menu;
 }
 
+/**
+ * Implementation of hook_theme().
+ */
 function conglomerateclient_theme($existing, $type, $theme, $path) {
   $themes = array();
 
@@ -501,16 +507,26 @@ function conglomerateclient_cron() {
   conglomerateclient_sync_nodes($dirty);
 }
 
+/**
+ * Filter node through view to determine if and what to synchronize.
+ */
 function conglomerateclient_evaluate_node($nid) {
-  $node = node_load($nid);
+  if (!$node = node_load($nid)) return array();
+
+  foreach (views_get_all_views() as $view) {
+    foreach ($view->display as $display_id => $display) {
+      if ($display->display_plugin != 'sync') continue;
+      if ($display->display_options['content_type'] == $node->type) {
+        $view->execute_display($display_id, array($node->nid));
+        $result = reset($view->result);
+        $result->server_type = $display->display_options['server_type'];
+        break 2;
+      }
+    }
+  }
+
   $sid = 1;
   return array(
-    $sid => array(
-      'type' => 'CONGLOMERATE_TYPE_POST',
-      'title' => $node->title,
-      'text' => $node->field_teaser[0]['value'],
-      'position' => $node->simple_geo_position,
-      'picture' => $node->field_images[0]['filepath'],
-    ),
+    $sid => (array) $result,
   );
 }
