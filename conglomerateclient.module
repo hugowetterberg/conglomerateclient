@@ -516,9 +516,10 @@ function conglomerateclient_evaluate_node($nid) {
   foreach (views_get_all_views() as $view) {
     foreach ($view->display as $display_id => $display) {
       if ($display->display_plugin != 'sync') continue;
-      if ($display->display_options['type'] == $node->type) {
+      if ($display->display_options['content_type'] == $node->type) {
         $view->execute_display($display_id, array($node->nid));
         $result = reset($view->result);
+        $result->server_type = $display->display_options['server_type'];
         break 2;
       }
     }
@@ -526,12 +527,6 @@ function conglomerateclient_evaluate_node($nid) {
 
   $sid = 1;
   return array(
-    $sid => array(
-      'type' => 'CONGLOMERATE_TYPE_POST',
-      'title' => $node->title,
-      'text' => $node->field_teaser[0]['value'],
-      'position' => $node->simple_geo_position,
-      'picture' => $node->field_images[0]['filepath'],
-    ),
+    $sid => (array) $result,
   );
 }
