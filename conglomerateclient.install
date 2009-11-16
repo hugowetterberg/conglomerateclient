@@ -5,6 +5,10 @@ function conglomerateclient_install() {
   drupal_install_schema('conglomerateclient');
 }
 
+function conglomerateclient_uninstall() {
+  drupal_uninstall_schema('conglomerateclient');
+}
+
 function conglomerateclient_schema() {
   $schema = array();
 
@@ -62,6 +66,12 @@ function conglomerateclient_schema() {
       ),
       'sid' => array(
         'description' => t('The primary identifier for the target site.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'nid' => array(
+        'description' => t('The primary identifier for a node.'),
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE,
@@ -139,7 +149,7 @@ function conglomerateclient_schema() {
         'size'        => 'small',
         'unsigned'    => TRUE,
         'not null'    => TRUE,
-        'default'     => FALSE,
+        'default'     => 0,
       ),
       'updated' => array(
         'description' => t('The Unix timestamp when the synchronization state was updated.'),
