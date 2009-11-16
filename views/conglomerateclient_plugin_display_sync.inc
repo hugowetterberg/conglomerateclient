@@ -79,6 +79,25 @@ class conglomerateclient_plugin_display_sync extends views_plugin_display {
       'title' => t('Server type'),
       'value' => $this->conglomerate_types[$server_type],
     );
+
+    $server = $this->get_option('server');
+    if (!empty($server)) {
+      $servers = conglomerateclient_get_servers();
+      if (isset($servers[$server])) {
+        $server = $servers[$server]['name'];
+      }
+      else {
+        $server = t('Unknown server');
+      }
+    }
+    else {
+      $server = t('None');
+    }
+    $options['server'] = array(
+      'category' => 'synchronization',
+      'title' => t('Server'),
+      'value' => $server,
+    );
   }
 
   /**
@@ -111,6 +130,23 @@ class conglomerateclient_plugin_display_sync extends views_plugin_display {
           '#options' => $this->conglomerate_types,
         );
         break;
+      case 'server':
+        $servers = conglomerateclient_get_servers();
+        $options = array(
+          '' => t('None'),
+        );
+        foreach ($servers as $sid => $info) {
+          $options[$sid] = $info['name'];
+        }
+
+        $form['#title'] .= t('Choose a server to synchronize with');
+        $form['server'] = array(
+          '#type' => 'select',
+          '#description' => t("Select a server."),
+          '#default_value' => $this->get_option('server'),
+          '#options' => $options,
+        );
+        break;
     }
   }
 
@@ -123,6 +159,9 @@ class conglomerateclient_plugin_display_sync extends views_plugin_display {
         break;
       case 'server_type':
         $this->set_option('server_type', $form_state['values']['server_type']);
+        break;
+      case 'server':
+        $this->set_option('server', $form_state['values']['server']);
         break;
     }
   }
@@ -138,6 +177,11 @@ class conglomerateclient_plugin_display_sync extends views_plugin_display {
     $server_type = $this->get_option('server_type');
     if (empty($server_type) || $server_type == CONGLOMERATE_TYPE_NONE) {
       $errors[] = t('Display @display does not have a valid Server type defined for  synchronization.', array('@display' => $this->display->display_title));
+    }
+
+    $server = $this->get_option('server');
+    if (empty($server)) {
+      $errors[] = t('Display @display does not have a valid server defined for synchronization.', array('@display' => $this->display->display_title));
     }
 
     return $errors;

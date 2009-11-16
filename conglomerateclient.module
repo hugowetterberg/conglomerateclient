@@ -289,12 +289,15 @@ function conglomerateclient_nodeapi(&$node, $op, $a3 = NULL, $page = NULL) {
  */
 function conglomerateclient_mark_node_as_dirty($nid = NULL) {
   global $db_type;
-  static $queue = array();
+  static $queue;
+
+  if (!$queue) {
+    $queue = array();
+  }
 
   if ($nid) {
     // Queue the node so that we can sync it on exit
     $queue[] = $nid;
-
     if ($db_type == 'mysql') {
       // We can do the insert in one statement if we're on mysql
       db_query("INSERT INTO {conglomerateclient_node_dirty} VALUES(%d)
@@ -347,11 +350,11 @@ function conglomerateclient_process_nodes($nodes) {
     // Queue updates and deletes
     foreach ($sync as $sid => $data) {
       if (isset($status[$sid])) {
-        conglomerateclient_queue_operation($nid, $sid, 'update', $data);
+        conglomerateclient_queue_operation($nid, $sid, 'update', $info);
       }
       else {
         conglomerateclient_set_node_sync_info($nid, $sid);
-        conglomerateclient_queue_operation($nid, $sid, 'create', $data);
+        conglomerateclient_queue_operation($nid, $sid, 'create', $info);
       }
     }
     // Queue deletes
@@ -387,13 +390,12 @@ function conglomerateclient_queue_operation($nid, $sid, $operation, $data) {
     'data' => $data,
     'added' => time(),
   );
-  drupal_write_record($values);
+  drupal_write_record('conglomerateclient_queue', $values);
 }
 
 function conglomerateclient_sync_nodes($nodes) {
   $placeholders = db_placeholders($nodes);
 
-  db_lock_table('conglomerateclient_sync_info');
   $res = db_query("SELECT q.* FROM {conglomerateclient_queue} AS q
     INNER JOIN {conglomerateclient_sync_info} AS i ON (i.sid=q.sid AND i.nid=q.nid)
     WHERE q.nid IN({$placeholders}) AND i.in_progress = 0
@@ -413,7 +415,6 @@ function conglomerateclient_sync_nodes($nodes) {
     db_query("UPDATE {conglomerateclient_sync_info} SET in_progress = 1
       WHERE sid=%s AND nid IN({$placeholders})", $params);
   }
-  db_unlock_tables();
 
   // Run through and execute the queued operations
   foreach ($sync as $sid => $updates) {
@@ -424,7 +425,7 @@ function conglomerateclient_sync_nodes($nodes) {
       $last_success = FALSE;
       for ($i=0; $i<count($ops); $i++) {
         if ($ops[$i]) {
-          $success = _conglogemerateclient_perform_operation($sid, $nid, $ops[$i]);
+          $success = _conglogemerateclient_perform_operation($ops[$i]);
           if (!$success) {
             if ($last_success !== FALSE) {
               $sync[$sid][$nid] = array_slice($sync[$sid][$nid], 0, $last_success+1);
@@ -432,10 +433,14 @@ function conglomerateclient_sync_nodes($nodes) {
             else {
               unset($sync[$sid][$nid]);
             }
+            break;
           }
           else {
             $last_success = $i;
           }
+        }
+        else {
+          $last_success = $i;
         }
       }
     }
@@ -453,9 +458,8 @@ function conglomerateclient_sync_nodes($nodes) {
   // Delete the operations that were successful.
   $placeholders = db_placeholders($opids);
   db_query("DELETE FROM {conglomerateclient_queue}
-    WHERE id IN({$placeholders})", $placeholders);
+    WHERE id IN({$placeholders})", $opids);
 
-  db_lock_table('conglomerateclient_sync_info');
   // Mark the nodes as processed
   foreach ($sync as $sid => $updates) {
     $params = array_keys($updates);
@@ -464,7 +468,6 @@ function conglomerateclient_sync_nodes($nodes) {
     db_query("UPDATE {conglomerateclient_sync_info} SET in_progress = 0
       WHERE sid=%s AND nid IN({$placeholders})", $params);
   }
-  db_unlock_tables();
 }
 
 /**
@@ -507,26 +510,56 @@ function conglomerateclient_cron() {
   conglomerateclient_sync_nodes($dirty);
 }
 
+function conglomerateclient_sync_views($content_type) {
+  $cached = cache_get('conglomerateclient:views:' . $content_type);
+  if ($cached && $cached->data) {
+    $sync_views = $cached->data;
+  }
+  else {
+    $sync_views = array();
+    foreach (views_get_all_views() as $view) {
+      foreach ($view->display as $display_id => $display) {
+        if ($display->display_plugin == 'sync' && $display->display_options['content_type'] == $node->type) {
+          $sync_views[$view->name][] = $display_id;
+        }
+      }
+    }
+    cache_set('conglomerateclient:views:' . $content_type, $sync_views, 'cache', CACHE_TEMPORARY);
+  }
+
+  return $sync_views;
+}
+
 /**
  * Filter node through view to determine if and what to synchronize.
  */
 function conglomerateclient_evaluate_node($nid) {
   if (!$node = node_load($nid)) return array();
+  $result = array();
 
-  foreach (views_get_all_views() as $view) {
-    foreach ($view->display as $display_id => $display) {
-      if ($display->display_plugin != 'sync') continue;
-      if ($display->display_options['content_type'] == $node->type) {
+  $views = conglomerateclient_sync_views($node->type);
+  foreach ($views as $view_name => $displays) {
+    $view = views_get_view($view_name);
+    foreach ($displays as $display_id) {
+      $display = $view->display[$display_id];
+      $server = $display->display_options['server'];
+
+      // We stop executing views for servers that we already have a match for
+      if (!isset($result[$server])) {
         $view->execute_display($display_id, array($node->nid));
         $result = reset($view->result);
-        $result->server_type = $display->display_options['server_type'];
-        break 2;
+        $result->type = $display->display_options['server_type'];
+        $result[$server] = (array)$result;
       }
     }
   }
 
-  $sid = 1;
-  return array(
-    $sid => (array) $result,
-  );
+  return $result;
+}
+
+function _conglogemerateclient_perform_operation($op) {
+  error_log('Perform op: ' . var_export($op, TRUE));
+  $data = unserialize($op['data']);
+  
+  return TRUE;
 }
