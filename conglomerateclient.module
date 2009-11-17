@@ -533,9 +533,6 @@ function conglomerateclient_sync_views($content_type) {
   else {
     $sync_views = array();
     foreach (views_get_all_views() as $view) {
-      if ($view->disabled) {
-        continue;
-      }
       foreach ($view->display as $display_id => $display) {
         if ($display->display_plugin == 'sync' && $display->display_options['content_type'] == $content_type) {
           $sync_views[$view->name][] = $display_id;
@@ -555,12 +552,21 @@ function conglomerateclient_evaluate_node($nid) {
   if (!$node = node_load($nid)) return array();
   $result = array();
 
+  $servers = conglomerateclient_get_servers();
+
   $views = conglomerateclient_sync_views($node->type);
   foreach ($views as $view_name => $displays) {
     $view = views_get_view($view_name);
+    if ($view->disabled) {
+      continue;
+    }
     foreach ($displays as $display_id) {
       $display = $view->display[$display_id];
       $server = $display->display_options['server'];
+      // Check that a server has been specified and that it exists
+      if (empty($server) || !isset($servers[$server])) {
+        continue;
+      }
 
       // We stop executing views for servers that we already have a match for
       if (!isset($result[$server])) {
