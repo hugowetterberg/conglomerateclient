@@ -573,9 +573,14 @@ function conglomerateclient_evaluate_node($nid) {
       // We stop executing views for servers that we already have a match for
       if (!isset($result[$server])) {
         $view->execute_display($display_id, array($node->nid));
-        $row = reset($view->result);
-        $row->type = $display->display_options['server_type'];
-        $result[$server] = (array)$row;
+        $view_result = reset($view->result);
+
+        $row = array('type' => $display->display_options['server_type']);
+        foreach ($display->display_options['fields_mapping'] as $key => $value) {
+          $row[$key] = $view_result->{$value};
+        }
+
+        $result[$server] = $row;
       }
     }
   }
