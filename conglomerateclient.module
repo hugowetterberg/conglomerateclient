@@ -280,6 +280,32 @@ function conglomerateclient_nodeapi(&$node, $op, $a3 = NULL, $page = NULL) {
 }
 
 /**
+ * Implementation of hook_exit();
+ */
+function conglomerateclient_exit() {
+  // Get the nodes that have been marked as dirty during this request
+  $dirty = conglomerateclient_mark_node_as_dirty();
+  if (!empty($dirty)) {
+    $max_ad_hoc = variable_get('conglomerateclient_maximum_adhoc_updates', 3);
+    if (count($dirty)>$max_ad_hoc) {
+      $dirty = array_slice($dirty, 0, $max_ad_hoc);
+    }
+    conglomerateclient_process_nodes($dirty);
+    conglomerateclient_sync_nodes($dirty);
+  }
+}
+
+/**
+ * Implementation of hook_cron().
+ */
+function conglomerateclient_cron() {
+  $max_updates = variable_get('conglomerateclient_maximum_cron_updates', 20);
+  $dirty = conglomerateclient_get_dirty_nodes($max_updates);
+  conglomerateclient_process_nodes($dirty);
+  conglomerateclient_sync_nodes($dirty);
+}
+
+/**
  * Marks a node as dirty.
  *
  * @param int $nid
@@ -345,6 +371,7 @@ function conglomerateclient_get_dirty_nodes($limit = 0) {
 function conglomerateclient_process_nodes($nodes) {
   foreach ($nodes as $nid) {
     $sync = conglomerateclient_evaluate_node($nid);
+    error_log(var_export($sync, TRUE));
     $status = conglomerateclient_get_node_sync_info($nid);
 
     // Queue updates and deletes
@@ -390,6 +417,7 @@ function conglomerateclient_queue_operation($nid, $sid, $operation, $data) {
     'data' => $data,
     'added' => time(),
   );
+  error_log('Adding queue item: ' . var_export($values, TRUE));
   drupal_write_record('conglomerateclient_queue', $values);
 }
 
@@ -490,36 +518,19 @@ function _conglomerateclient_compress_node_ops(&$ops) {
   }
 }
 
-function conglomerateclient_exit() {
-  // Get the nodes that have been marked as dirty during this request
-  $dirty = conglomerateclient_mark_node_as_dirty();
-  if (!empty($dirty)) {
-    $max_ad_hoc = variable_get('conglomerateclient_maximum_adhoc_updates', 3);
-    if (count($dirty)>$max_ad_hoc) {
-      $dirty = array_slice($dirty, 0, $max_ad_hoc);
-    }
-    conglomerateclient_process_nodes($dirty);
-    conglomerateclient_sync_nodes($dirty);
-  }
-}
-
-function conglomerateclient_cron() {
-  $max_updates = variable_get('conglomerateclient_maximum_cron_updates', 20);
-  $dirty = conglomerateclient_get_dirty_nodes($max_updates);
-  conglomerateclient_process_nodes($dirty);
-  conglomerateclient_sync_nodes($dirty);
-}
-
 function conglomerateclient_sync_views($content_type) {
   $cached = cache_get('conglomerateclient:views:' . $content_type);
-  if ($cached && $cached->data) {
+  if (FALSE && $cached && $cached->data) {
     $sync_views = $cached->data;
   }
   else {
     $sync_views = array();
     foreach (views_get_all_views() as $view) {
+      if ($view->disabled) {
+        continue;
+      }
       foreach ($view->display as $display_id => $display) {
-        if ($display->display_plugin == 'sync' && $display->display_options['content_type'] == $node->type) {
+        if ($display->display_plugin == 'sync' && $display->display_options['content_type'] == $content_type) {
           $sync_views[$view->name][] = $display_id;
         }
       }
@@ -547,9 +558,9 @@ function conglomerateclient_evaluate_node($nid) {
       // We stop executing views for servers that we already have a match for
       if (!isset($result[$server])) {
         $view->execute_display($display_id, array($node->nid));
-        $result = reset($view->result);
-        $result->type = $display->display_options['server_type'];
-        $result[$server] = (array)$result;
+        $row = reset($view->result);
+        $row->type = $display->display_options['server_type'];
+        $result[$server] = (array)$row;
       }
     }
   }
