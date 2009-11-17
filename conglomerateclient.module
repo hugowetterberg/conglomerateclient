@@ -518,6 +518,13 @@ function _conglomerateclient_compress_node_ops(&$ops) {
   }
 }
 
+/**
+ * Gets the view names and display Id's for the views and displays that can be
+ * used to determine if a node should be synced.
+ *
+ * @param string $content_type
+ * @return array
+ */
 function conglomerateclient_sync_views($content_type) {
   $cached = cache_get('conglomerateclient:views:' . $content_type);
   if (FALSE && $cached && $cached->data) {
