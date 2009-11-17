@@ -377,11 +377,11 @@ function conglomerateclient_process_nodes($nodes) {
     // Queue updates and deletes
     foreach ($sync as $sid => $data) {
       if (isset($status[$sid])) {
-        conglomerateclient_queue_operation($nid, $sid, 'update', $info);
+        conglomerateclient_queue_operation($nid, $sid, 'update', $data);
       }
       else {
         conglomerateclient_set_node_sync_info($nid, $sid);
-        conglomerateclient_queue_operation($nid, $sid, 'create', $info);
+        conglomerateclient_queue_operation($nid, $sid, 'create', $data);
       }
     }
     // Queue deletes
