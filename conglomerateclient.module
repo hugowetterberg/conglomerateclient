@@ -484,9 +484,11 @@ function conglomerateclient_sync_nodes($nodes) {
     }
   }
   // Delete the operations that were successful.
-  $placeholders = db_placeholders($opids);
-  db_query("DELETE FROM {conglomerateclient_queue}
-    WHERE id IN({$placeholders})", $opids);
+  if (!empty($opids)) {
+    $placeholders = db_placeholders($opids);
+    db_query("DELETE FROM {conglomerateclient_queue}
+      WHERE id IN({$placeholders})", $opids);
+  }
 
   // Mark the nodes as processed
   foreach ($sync as $sid => $updates) {
