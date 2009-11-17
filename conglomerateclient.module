@@ -26,15 +26,15 @@ function conglomerateclient_menu() {
   $menu['admin/settings/conglomerateclient'] = array(
     'title'   => 'Conglomerate client settings',
     'description' => 'Administer the settings for the conglomerate client',
-    'type'    => MENU_DEFAULT_LOCAL_TASK,
+    'file'  => 'includes/admin.inc',
+    'page callback' => '_conglomerateclient_admin_index',
+    'access arguments' => array('adminster conglomerate client'),
+    'type'    => MENU_NORMAL_ITEM,
   );
 
   $menu['admin/settings/conglomerateclient/index'] = array(
     'title' => 'Conglomerate servers',
-    'file'  => 'includes/admin.inc',
-    'page callback' => '_conglomerateclient_admin_index',
-    'access arguments' => array('adminster conglomerate client'),
-    'type'    => MENU_LOCAL_TASK,
+    'type'    => MENU_DEFAULT_LOCAL_TASK,
     'weight'  => -10,
   );
 
