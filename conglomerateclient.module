@@ -577,7 +577,7 @@ function conglomerateclient_evaluate_node($nid) {
 
         $row = array('type' => $display->display_options['server_type']);
         foreach ($display->display_options['fields_mapping'] as $key => $value) {
-          $row[$key] = $view_result->{$value};
+          $row[$key] = $view->style_plugin->rendered_fields[0][$value];
         }
 
         $result[$server] = $row;
