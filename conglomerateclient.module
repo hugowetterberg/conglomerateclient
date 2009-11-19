@@ -6,7 +6,7 @@ define('CONGLOMERATE_UPDATE', 'update');
 define('CONGLOMERATE_DELETE', 'delete');
 
 define('CONGLOMERATE_TYPE_NONE', 'none');
-define('CONGLOMERATE_TYPE_POST', 'post');
+define('CONGLOMERATE_TYPE_POST', 'news');
 define('CONGLOMERATE_TYPE_EVENT', 'event');
 define('CONGLOMERATE_TYPE_LOCATION', 'location');
 
@@ -302,7 +302,7 @@ function conglomerateclient_cron() {
   $max_updates = variable_get('conglomerateclient_maximum_cron_updates', 20);
   $dirty = conglomerateclient_get_dirty_nodes($max_updates);
   conglomerateclient_process_nodes($dirty);
-  conglomerateclient_sync_nodes($dirty);
+  conglomerateclient_sync_nodes();
 }
 
 /**
@@ -371,7 +371,6 @@ function conglomerateclient_get_dirty_nodes($limit = 0) {
 function conglomerateclient_process_nodes($nodes) {
   foreach ($nodes as $nid) {
     $sync = conglomerateclient_evaluate_node($nid);
-    error_log(var_export($sync, TRUE));
     $status = conglomerateclient_get_node_sync_info($nid);
 
     // Queue updates and deletes
@@ -417,17 +416,23 @@ function conglomerateclient_queue_operation($nid, $sid, $operation, $data) {
     'data' => $data,
     'added' => time(),
   );
-  error_log('Adding queue item: ' . var_export($values, TRUE));
   drupal_write_record('conglomerateclient_queue', $values);
 }
 
-function conglomerateclient_sync_nodes($nodes) {
-  $placeholders = db_placeholders($nodes);
-
-  $res = db_query("SELECT q.* FROM {conglomerateclient_queue} AS q
-    INNER JOIN {conglomerateclient_sync_info} AS i ON (i.sid=q.sid AND i.nid=q.nid)
-    WHERE q.nid IN({$placeholders}) AND i.in_progress = 0
-    ORDER BY q.sid, q.nid, q.added", $nodes);
+function conglomerateclient_sync_nodes($nodes=array()) {
+  if (!empty($nodes)) {
+    $placeholders = db_placeholders($nodes);
+    $res = db_query("SELECT q.*, i.eid FROM {conglomerateclient_queue} AS q
+      INNER JOIN {conglomerateclient_sync_info} AS i ON (i.sid=q.sid AND i.nid=q.nid)
+      WHERE q.nid IN({$placeholders}) AND i.in_progress = 0
+      ORDER BY q.sid, q.nid, q.added", $nodes);
+  }
+  else {
+    $res = db_query("SELECT q.*, i.eid FROM {conglomerateclient_queue} AS q
+      INNER JOIN {conglomerateclient_sync_info} AS i ON (i.sid=q.sid AND i.nid=q.nid)
+      WHERE i.in_progress = 0
+      ORDER BY q.sid, q.nid, q.added");
+  }
 
   $in_progress = array();
   $sync = array();
@@ -439,64 +444,67 @@ function conglomerateclient_sync_nodes($nodes) {
   foreach ($sync as $sid => $updates) {
     $params = array_keys($updates);
     $placeholders = db_placeholders($params);
-    array_unshift($params, $sid);
+    $params = array_merge(array($sid), $params);
     db_query("UPDATE {conglomerateclient_sync_info} SET in_progress = 1
-      WHERE sid=%s AND nid IN({$placeholders})", $params);
+      WHERE sid=%d AND nid IN({$placeholders})", $params);
   }
 
-  // Run through and execute the queued operations
-  foreach ($sync as $sid => $updates) {
-    foreach ($updates as $nid => $ops) {
-      // Remove redundant operations
-      _conglomerateclient_compress_node_ops($ops);
+  // Successful operation ID:s
+  $opids = array();
+  // Failed operation ID:s
+  $fopids = array();
 
-      $last_success = FALSE;
-      for ($i=0; $i<count($ops); $i++) {
-        if ($ops[$i]) {
-          $success = _conglogemerateclient_perform_operation($ops[$i]);
-          if (!$success) {
-            if ($last_success !== FALSE) {
-              $sync[$sid][$nid] = array_slice($sync[$sid][$nid], 0, $last_success+1);
+  try {
+    // Run through and execute the queued operations
+    foreach ($sync as $sid => $updates) {
+      foreach ($updates as $nid => $ops) {
+        // Remove redundant operations
+        _conglomerateclient_compress_node_ops($ops);
+
+        $last_success = FALSE;
+        for ($i=0; $i<count($ops); $i++) {
+          if ($ops[$i]) {
+            $success = _conglomerateclient_perform_operation($ops[$i]);
+            if ($success) {
+              $opids = $ops[$i]['id'];
             }
             else {
-              unset($sync[$sid][$nid]);
+              $fopids = $ops[$i]['id'];
+              break;
             }
-            break;
           }
-          else {
-            $last_success = $i;
-          }
-        }
-        else {
-          $last_success = $i;
         }
       }
     }
+  }
+  catch (Exception $e) {
+    watchdog('conglomerateclient', 'An error occured while pushing updates: [@code] @message', array(
+      '@code' => $e->getCode(),
+      '@message' => $e->getMessage(),
+    ), WATCHDOG_ERROR);
   }
 
-  // Collect the id:s of the successful operations.
-  $opids = array();
-  foreach ($sync as $sid => $updates) {
-    foreach ($updates as $nid => $ops) {
-      foreach ($ops as $op) {
-        $opids[] = $op['id'];
-      }
-    }
-  }
   // Delete the operations that were successful.
   if (!empty($opids)) {
     $placeholders = db_placeholders($opids);
     db_query("DELETE FROM {conglomerateclient_queue}
       WHERE id IN({$placeholders})", $opids);
   }
+  // Increas fail count the operations that were unsuccessful.
+  if (!empty($fopids)) {
+    $placeholders = db_placeholders($fopids);
+    db_query("UPDATE {conglomerateclient_queue}
+      SET fail_count = fail_count + 1
+      WHERE id IN({$placeholders})", $fopids);
+  }
 
   // Mark the nodes as processed
   foreach ($sync as $sid => $updates) {
     $params = array_keys($updates);
     $placeholders = db_placeholders($params);
-    array_unshift($params, $sid);
+    $params = array_merge(array($sid), $params);
     db_query("UPDATE {conglomerateclient_sync_info} SET in_progress = 0
-      WHERE sid=%s AND nid IN({$placeholders})", $params);
+      WHERE sid=%d AND nid IN({$placeholders})", $params);
   }
 }
 
@@ -595,13 +603,76 @@ function conglomerateclient_evaluate_node($nid) {
       }
     }
   }
+  return $result;
+}
+
+function _conglomerateclient_perform_operation($op) {
+  $data = unserialize($op['data']);
+
+  $result = FALSE;
+  $credentials = _conglomerateclient_credentials($op['sid']);
+
+  if ($credentials) {
+    $server = $credentials['server'];
+    $auth = new RestClientOAuth($credentials['consumer'], $credentials['token'], new OAuthSignatureMethod_HMAC_SHA1());
+    $client = new RestClient($auth, new RestClientBaseFormatter());
+
+    try {
+      switch ($op['operation']) {
+        case 'create':
+          $res = $client->post($server['endpoint'] . '/content.php', $data);
+          if ($res && isset($res->nid)) {
+            db_query("UPDATE {conglomerateclient_sync_info} SET eid = %d
+              WHERE sid=%d AND nid = %d", array(
+                ':eid' => $res->nid,
+                ':sid' => $op['sid'],
+                ':nid' => $op['nid'],
+              ));
+            $result = TRUE;
+          }
+          break;
+        case 'update':
+          $res = $client->put($server['endpoint'] . '/content/' . $op['eid'] . '.php', $data);
+          $result = $res && isset($res->nid);
+          break;
+        case 'delete':
+          break;
+      }
+    }
+    catch (Exception $e) {
+      error_log(var_export($e->getMessage(), TRUE));
+      $result = FALSE;
+    }
+  }
 
   return $result;
 }
 
-function _conglogemerateclient_perform_operation($op) {
-  error_log('Perform op: ' . var_export($op, TRUE));
-  $data = unserialize($op['data']);
-  
-  return TRUE;
+function _conglomerateclient_credentials($server) {
+  static $static_credentials;
+
+  $credentials = FALSE;
+  if (!isset($credentials[$server])) {
+    $servers = conglomerateclient_get_servers();
+    if (isset($servers[$server])) {
+      $s = $servers[$server];
+      if (!empty($s['oauth_consumer']) && !empty($s['oauth_token_key'])) {
+        $consumer = DrupalOAuthConsumerToken::load($s['oauth_consumer']);
+        $token = DrupalOAuthToken::load($s['oauth_token_key']);
+        if ($consumer && $token) {
+          $credentials = array(
+            'server' => $s,
+            'consumer' => $consumer,
+            'token' => $token,
+          );
+        }
+      }
+    }
+    $static_credentials[$server] = $credentials;
+  }
+  else {
+    $credentials = $static_credentials[$server];
+  }
+
+  return $credentials;
 }

@@ -3,5 +3,6 @@ name = Conglomerate client
 description = Allows a site to connect to a central conglomerate server
 dependencies[] = oauth_common
 dependencies[] = rest_client
+dependencies[] = rest_client_oauth
 dependencies[] = views
 core = 6.x
