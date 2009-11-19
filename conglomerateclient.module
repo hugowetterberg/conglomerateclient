@@ -386,8 +386,7 @@ function conglomerateclient_process_nodes($nodes) {
     // Queue deletes
     foreach ($status as $sid => $info) {
       if (!isset($sync[$sid])) {
-        conglomerateclient_delete_node_sync_info($nid, $sid);
-        conglomerateclient_queue_operation($nid, $sid, 'delete', NULL);
+        conglomerateclient_queue_operation($nid, $sid, 'delete', $info);
       }
     }
   }
@@ -466,10 +465,10 @@ function conglomerateclient_sync_nodes($nodes=array()) {
           if ($ops[$i]) {
             $success = _conglomerateclient_perform_operation($ops[$i]);
             if ($success) {
-              $opids = $ops[$i]['id'];
+              $opids[] = $ops[$i]['id'];
             }
             else {
-              $fopids = $ops[$i]['id'];
+              $fopids[] = $ops[$i]['id'];
               break;
             }
           }
@@ -583,23 +582,25 @@ function conglomerateclient_evaluate_node($nid) {
         $view->execute_display($display_id, array($node->nid));
         $view_result = reset($view->result);
 
-        $row = array('type' => $display->display_options['server_type']);
-        foreach ($display->display_options['fields_mapping'] as $key => $value) {
-          $row[$key] = $view->style_plugin->rendered_fields[0][$value];
-        }
+        if ($view_result) {
+          $row = array('type' => $display->display_options['server_type']);
+          foreach ($display->display_options['fields_mapping'] as $key => $value) {
+            $row[$key] = $view->style_plugin->rendered_fields[0][$value];
+          }
 
-        // Add the url to the node as default to the url field
-        if (empty($row['url'])) {
-          $row['url'] = url('node/' . $node->nid, array(
-            'absolute' => TRUE,
-          ));
-        }
-        // Add the node language if not set
-        if (empty($row['language'])) {
-          $row['language'] = $node->language;
-        }
+          // Add the url to the node as default to the url field
+          if (empty($row['url'])) {
+            $row['url'] = url('node/' . $node->nid, array(
+              'absolute' => TRUE,
+            ));
+          }
+          // Add the node language if not set
+          if (empty($row['language'])) {
+            $row['language'] = $node->language;
+          }
 
-        $result[$server] = $row;
+          $result[$server] = $row;
+        }
       }
     }
   }
@@ -636,6 +637,11 @@ function _conglomerateclient_perform_operation($op) {
           $result = $res && isset($res->nid);
           break;
         case 'delete':
+          $res = $client->delete($server['endpoint'] . '/content/' . $op['eid'] . '.php', $data);
+          if ($res) {
+            conglomerateclient_delete_node_sync_info($op['nid'], $op['sid']);
+            $result = TRUE;
+          }
           break;
       }
     }
