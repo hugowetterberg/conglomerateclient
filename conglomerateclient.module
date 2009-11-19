@@ -580,6 +580,17 @@ function conglomerateclient_evaluate_node($nid) {
           $row[$key] = $view->style_plugin->rendered_fields[0][$value];
         }
 
+        // Add the url to the node as default to the url field
+        if (empty($row['url'])) {
+          $row['url'] = url('node/' . $node->nid, array(
+            'absolute' => TRUE,
+          ));
+        }
+        // Add the node language if not set
+        if (empty($row['language'])) {
+          $row['language'] = $node->language;
+        }
+
         $result[$server] = $row;
       }
     }
