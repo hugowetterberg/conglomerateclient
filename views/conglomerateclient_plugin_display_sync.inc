@@ -52,44 +52,29 @@ class conglomerateclient_plugin_display_sync extends views_plugin_display {
       $server_type = $this->get_option('server_type');
     }
 
+    $fields = array(
+      'title' => t('Title'),
+      'text' => t('Text'),
+      'position' => t('Position'),
+      'tags' => t('Tags'),
+      'picture' => t('Picture'),
+      'url' => t('URL'),
+      'language' => t('Language'),
+      'comments' => t('Comments'),
+    );
+
     switch ($server_type) {
-      case 'post':
-        return array(
-          'title' => t('Title'),
-          'text' => t('Text'),
-          'position' => t('Position'),
-          'tags' => t('Tags'),
-          'picture' => t('Picture'),
-          'url' => t('URL'),
-          'language' => t('Language'),
-          'comments' => t('Comments'),
-        );
-      case 'event':
-        return array(
-          'title' => t('Title'),
-          'text' => t('Text'),
-          'position' => t('Position'),
-          'tags' => t('Tags'),
-          'picture' => t('Picture'),
-          'url' => t('URL'),
-          'language' => t('Language'),
-          'comments' => t('Comments'),
-          'starts' => t('Starts'),
-        );
-      case 'location':
-        return array(
-          'title' => t('Title'),
-          'text' => t('Text'),
-          'position' => t('Position'),
-          'tags' => t('Tags'),
-          'picture' => t('Picture'),
-          'url' => t('URL'),
-          'language' => t('Language'),
-          'comments' => t('Comments'),
-        );
-      case 'default':
-        return array();
+      case CONGLOMERATE_TYPE_POST:
+        break;
+      case CONGLOMERATE_TYPE_EVENT:
+        $fields['starts'] = t('Starts');
+      case CONGLOMERATE_TYPE_LOCATION:
+        break;
+      default:
+        $fields = array();
     }
+
+    return $fields;
   }
 
   /**
@@ -97,7 +82,7 @@ class conglomerateclient_plugin_display_sync extends views_plugin_display {
    * fallback settings
    */
   function is_default_display() { return FALSE; }
- 
+
   /**
    * The default execute handler fully renders the view.
    */
