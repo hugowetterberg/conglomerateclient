@@ -58,6 +58,7 @@ class conglomerateclient_plugin_display_sync extends views_plugin_display {
       'position' => t('Position'),
       'tags' => t('Tags'),
       'picture' => t('Picture'),
+      'large_picture' => t('Full size picture'),
       'url' => t('URL'),
       'language' => t('Language'),
       'comments' => t('Comments'),

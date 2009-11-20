@@ -1,0 +1,12 @@
+core = "6.x"
+description = "Support module that makes it easier to create features that provide conglomerate content"
+features[imagecache][] = "conglomerate-image"
+features[imagecache][] = "conglomerate-large-image"
+
+dependencies[] = "imagecache"
+dependencies[] = "features"
+
+name = "conglomerateclientfeatures"
+package = "Features"
+project = "conglomerateclientfeatures"
+version = "6.x-1.0"
