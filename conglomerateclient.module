@@ -47,6 +47,16 @@ function conglomerateclient_menu() {
     'type'    => MENU_LOCAL_TASK,
   );
 
+  $menu['admin/settings/conglomerateclient/server/%/export'] = array(
+    'title callback' => '_conglomerateclient_server_name_callback',
+    'title arguments' => array(4),
+    'file'  => 'includes/admin.inc',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('_conglomerateclient_admin_export_server', 4),
+    'access arguments' => array('adminster conglomerate client'),
+    'type'    => MENU_CALLBACK,
+  );
+
   $menu['admin/settings/conglomerateclient/authorize/%'] = array(
     'file'  => 'includes/authorization.inc',
     'page callback' => '_conglomerateclient_authorize_for_server',
@@ -56,6 +66,13 @@ function conglomerateclient_menu() {
   );
 
   return $menu;
+}
+
+function _conglomerateclient_server_name_callback($sid) {
+  $servers = conglomerateclient_get_servers();
+  if (isset($servers[$sid])) {
+    return $servers[$sid]['name'];
+  }
 }
 
 /**
@@ -121,6 +138,44 @@ function conglomerateclient_get_servers() {
     $servers[$server['sid']] = $server;
   }
   return $servers;
+}
+
+/**
+ * Returns a exportable array for the given server.
+ *
+ * @param int $sid
+ *  The id of the server
+ * @return array
+ */
+function conglomerateclient_export_server($sid) {
+  $servers = conglomerateclient_get_servers();
+  $export = array();
+
+  if ($servers[$sid]) {
+    $server = $servers[$sid];
+    unset($server['sid']);
+    $export['conglomerateclient_server'] = $server;
+    $cred = _conglomerateclient_credentials($sid);
+    if ($cred) {
+      $export['oauth_common_consumer_token'] = (array)$cred['consumer'];
+      $export['oauth_common_token'] =(array)$cred['token'];
+    }
+  }
+
+  return $export;
+}
+
+function _conglomerateclient_admin_export_server($form_state, $sid) {
+  $export = conglomerateclient_export_server($sid);
+  $form = array();
+  $form['body'] = array(
+    '#type' => 'textarea',
+    '#title' => t('Exported server'),
+    '#cols' => 60,
+    '#rows' => 30,
+    '#value' => "<?php\n// Export of the client information for the conglomerate server \"{$export['conglomerateclient_server']['name']}\"\n\n" . var_export($export, TRUE),
+  );
+  return $form;
 }
 
 /**

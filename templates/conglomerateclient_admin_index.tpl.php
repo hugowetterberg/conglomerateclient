@@ -8,7 +8,7 @@
     <?php endif ?>
     <?php foreach ($servers as $sid => $info): ?>
       <li class="server">
-        <div class="server-name"><?php print l($info['name'], 'admin/conglomerateclient/servers/' . $sid) ?></div>
+        <div class="server-name"><?php print l($info['name'], 'admin/settings/conglomerateclient/server/' . $sid) ?> <?php print l(t('Export'), 'admin/settings/conglomerateclient/server/' . $sid . '/export') ?></div>
         <a class="address"><?php print l($info['url'], $info['url']); ?></a>
         <?php if (!empty($info['oauth_token_key'])): ?>
           <span class="authorization authorized"><?php print t('Authorized'); ?></span>
