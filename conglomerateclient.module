@@ -47,6 +47,16 @@ function conglomerateclient_menu() {
     'type'    => MENU_LOCAL_TASK,
   );
 
+  $menu['admin/settings/conglomerateclient/server/%'] = array(
+    'title callback' => '_conglomerateclient_server_name_callback',
+    'title arguments' => array(4, 'Edit server !name'),
+    'file' => 'includes/admin.inc',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('_conglomerateclient_admin_edit_server', 4),
+    'access arguments' => array('administer conglomerate client'),
+    'type' => MENU_LOCAL_TASK,
+  );
+
   $menu['admin/settings/conglomerateclient/server/%/export'] = array(
     'title callback' => '_conglomerateclient_server_name_callback',
     'title arguments' => array(4),
@@ -68,10 +78,10 @@ function conglomerateclient_menu() {
   return $menu;
 }
 
-function _conglomerateclient_server_name_callback($sid) {
+function _conglomerateclient_server_name_callback($sid, $title = NULL) {
   $servers = conglomerateclient_get_servers();
   if (isset($servers[$sid])) {
-    return $servers[$sid]['name'];
+    return empty($title) ? $servers[$sid]['name'] : t($title, array('!name' => $servers[$sid]['name']));
   }
 }
 

@@ -150,3 +150,154 @@ function _conglomerateclient_write_server_tokens($values) {
     }
   }
 }
+
+/**
+ * Edit server information
+ *
+ * @param array $form_state
+ *
+ * @param int $sid
+ *  ID of server to edit
+ * @return array $form
+ */
+function _conglomerateclient_admin_edit_server($form_state, $sid) {
+  // Fetch server info
+  $servers = conglomerateclient_get_servers();
+  $server = $servers[$sid];
+
+  $form = array();
+
+  $form['sid'] = array(
+    '#type' => 'value',
+    '#value' => $sid,
+  );
+
+  $form['name'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Name'),
+    '#description' => t('The name of the conglomerate server.'),
+    '#size' => 32,
+    '#maxlength' => 255,
+    '#required' => TRUE,
+    '#default_value' => $server['name'],
+  );
+
+  $form['url'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Url'),
+    '#description' => t('A url to the conglomerate server, typically to the front page.'),
+    '#size' => 32,
+    '#maxlength' => 255,
+    '#required' => TRUE,
+    '#default_value' => $server['url'],
+  );
+
+  $form['endpoint'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Endpoint'),
+    '#description' => t('The api endpoint for the server.'),
+    '#size' => 32,
+    '#maxlength' => 255,
+    '#required' => TRUE,
+    '#default_value' => $server['endpoint'],
+  );
+
+  $form['consumer_key'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Consumer key'),
+    '#description' => t('The consumer key for this site on the conglomerate server.'),
+    '#size' => 32,
+    '#maxlength' => 32,
+    '#required' => TRUE,
+    '#default_value' => $server['oauth_consumer'],
+  );
+
+  $form['consumer_secret'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Consumer secret'),
+    '#description' => t('The consumer secret for this site on the conglomerate server'),
+    '#size' => 32,
+    '#maxlength' => 32,
+    '#required' => TRUE,
+    '#default_value' => DrupalOAuthConsumerToken::load($server['oauth_consumer'])->secret,
+  );
+
+  $form['access_key'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Access key'),
+    '#description' => t('The access key for this site on the conglomerate server.'),
+    '#size' => 32,
+    '#maxlength' => 32,
+    '#default_value' => $server['oauth_token_key'],
+  );
+
+  $form['access_secret'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Access secret'),
+    '#description' => t('The access secret for this site on the conglomerate server'),
+    '#size' => 32,
+    '#maxlength' => 32,
+    '#default_value' => DrupalOAuthToken::load($server['oauth_token_key'])->secret,
+  );
+
+  $form['create'] = array(
+    '#type' => 'submit',
+    '#value' => t('Update'),
+  );
+
+  return $form;
+}
+
+/**
+ * Updates server settings.
+ */
+function _conglomerateclient_admin_edit_server_submit($form, &$form_state) {
+  $values = $form_state['values'];
+  $servers = conglomerateclient_get_servers();
+
+  // Get originals
+  $server = $servers[$values['sid']];
+  $consumer = DrupalOAuthConsumerToken::load($server['oauth_consumer']);
+  $access = DrupalOAuthToken::load($server['oauth_token_key']);
+
+  /**
+   * Check consumer token
+   */
+  // Key has changed, create new, delete old
+  if ($consumer->key !== $values['consumer_key']) {
+    $consumer->delete();
+    // Create new consumer token
+    $c_token = new DrupalOAuthConsumerToken($values['consumer_key'], $values['consumer_secret'], array(
+      'provider_url' => $values['url'],
+    ));
+    $c_token->write();
+  }
+  // Secret has changed, key has not, just update
+  else if ($consumer->secret !== $values['consumer_secret']) {
+    $consumer->secret = $values['consumer_secret'];
+    $consumer->provider_url = $values['url'];
+    $consumer->write(TRUE);
+  }
+
+  /**
+   * Check access token
+   */
+  // Key has changed, create new, delete old
+  if (!$access || $access->key !== $values['access_key']) {
+    if ($access) {
+      $access->delete();
+    }
+    
+    // Create new access token
+    $a_token = new DrupalOAuthToken($values['access_key'], $values['access_secret']);
+    $a_token->write();
+  }
+  // Secret has changed, key has not, just update
+  else if ($access->secret !== $values['access_secret']) {
+    $access->secret = $values['access_secret'];
+    $access->write(TRUE);
+  }
+
+  // Update server
+  conglomerateclient_update_server($values['sid'], $values['name'], $values['url'], $values['endpoint'], $values['consumer_key'], $values['oauth_token_key']);
+}
