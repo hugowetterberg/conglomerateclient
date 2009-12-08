@@ -26,6 +26,12 @@ function _conglomerateclient_admin_add_server($form_state) {
     '#required' => TRUE,
   );
 
+  $form['login_server'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Use as login server'),
+    '#default_value' => 0,
+  );
+
   $form['url'] = array(
     '#type' => 'textfield',
     '#title' => t('Url'),
@@ -41,6 +47,24 @@ function _conglomerateclient_admin_add_server($form_state) {
     '#description' => t('The api endpoint for the server.'),
     '#size' => 32,
     '#maxlength' => 255,
+    '#required' => TRUE,
+  );
+
+  $form['login_consumer_key'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Login consumer key'),
+    '#description' => t('The login consumer key for this site on the conglomerate server.'),
+    '#size' => 32,
+    '#maxlength' => 32,
+    '#required' => TRUE,
+  );
+
+  $form['login_consumer_secret'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Login consumer secret'),
+    '#description' => t('The login consumer secret for this site on the conglomerate server'),
+    '#size' => 32,
+    '#maxlength' => 32,
     '#required' => TRUE,
   );
 
@@ -101,8 +125,13 @@ function _conglomerateclient_admin_add_server_submit($form, $form_state) {
   global $user;
 
   $values = $form_state['values'];
-  conglomerateclient_add_server($values['name'], $values['url'], $values['endpoint'], $values['consumer_key'], $values['access_key']);
+  $sid = conglomerateclient_add_server($values['name'], $values['url'], $values['endpoint'], $values['consumer_key'], $values['access_key']);
   _conglomerateclient_write_server_tokens($values);
+
+  if ($values['login_server']) {
+    variable_set('conglomerateclient_login_server', $sid);
+  }
+
   drupal_set_message(t('The server was added'), 'info');
   drupal_goto('admin/settings/conglomerateclient/index');
 }
@@ -161,6 +190,8 @@ function _conglomerateclient_write_server_tokens($values) {
  * @return array $form
  */
 function _conglomerateclient_admin_edit_server($form_state, $sid) {
+  $login_server = variable_get('conglomerateclient_login_server', 1);
+
   // Fetch server info
   $servers = conglomerateclient_get_servers();
   $server = $servers[$sid];
@@ -182,6 +213,12 @@ function _conglomerateclient_admin_edit_server($form_state, $sid) {
     '#default_value' => $server['name'],
   );
 
+  $form['login_server'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Use as login server'),
+    '#default_value' => $login_server == $sid,
+  );
+
   $form['url'] = array(
     '#type' => 'textfield',
     '#title' => t('Url'),
@@ -200,6 +237,26 @@ function _conglomerateclient_admin_edit_server($form_state, $sid) {
     '#maxlength' => 255,
     '#required' => TRUE,
     '#default_value' => $server['endpoint'],
+  );
+
+  $form['login_consumer_key'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Login consumer key'),
+    '#description' => t('The login consumer key for this site on the conglomerate server.'),
+    '#size' => 32,
+    '#maxlength' => 32,
+    '#required' => TRUE,
+    '#default_value' => $server['login_oauth_consumer'],
+  );
+
+  $form['login_consumer_secret'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Login consumer secret'),
+    '#description' => t('The login consumer secret for this site on the conglomerate server'),
+    '#size' => 32,
+    '#maxlength' => 32,
+    '#required' => TRUE,
+    '#default_value' => DrupalOAuthConsumerToken::load($server['login_oauth_consumer'])->secret,
   );
 
   $form['consumer_key'] = array(
@@ -255,9 +312,14 @@ function _conglomerateclient_admin_edit_server_submit($form, &$form_state) {
   $values = $form_state['values'];
   $servers = conglomerateclient_get_servers();
 
+  if ($values['login_server']) {
+    variable_set('conglomerateclient_login_server', $values['sid']);
+  }
+
   // Get originals
   $server = $servers[$values['sid']];
   $consumer = DrupalOAuthConsumerToken::load($server['oauth_consumer']);
+  $login_consumer = DrupalOAuthConsumerToken::load($server['login_oauth_consumer']);
   $access = DrupalOAuthToken::load($server['oauth_token_key']);
 
   /**
@@ -267,16 +329,34 @@ function _conglomerateclient_admin_edit_server_submit($form, &$form_state) {
   if ($consumer->key !== $values['consumer_key']) {
     $consumer->delete();
     // Create new consumer token
-    $c_token = new DrupalOAuthConsumerToken($values['consumer_key'], $values['consumer_secret'], array(
+    $consumer = new DrupalOAuthConsumerToken($values['consumer_key'], $values['consumer_secret'], array(
       'provider_url' => $values['url'],
     ));
-    $c_token->write();
+    $consumer->write();
   }
   // Secret has changed, key has not, just update
   else if ($consumer->secret !== $values['consumer_secret']) {
     $consumer->secret = $values['consumer_secret'];
     $consumer->provider_url = $values['url'];
     $consumer->write(TRUE);
+  }
+
+  // Key has changed, create new, delete old
+  if (!$login_consumer || $login_consumer->key !== $values['login_consumer_key']) {
+    if ($login_consumer) {
+      $login_consumer->delete();
+    }
+    // Create new login_consumer token
+    $login_consumer = new DrupalOAuthConsumerToken($values['login_consumer_key'], $values['login_consumer_secret'], array(
+      'provider_url' => $values['url'],
+    ));
+    $login_consumer->write();
+  }
+  // Secret has changed, key has not, just update
+  else if ($login_consumer->secret !== $values['login_consumer_secret']) {
+    $login_consumer->secret = $values['login_consumer_secret'];
+    $login_consumer->provider_url = $values['url'];
+    $login_consumer->write(TRUE);
   }
 
   /**
@@ -299,5 +379,5 @@ function _conglomerateclient_admin_edit_server_submit($form, &$form_state) {
   }
 
   // Update server
-  conglomerateclient_update_server($values['sid'], $values['name'], $values['url'], $values['endpoint'], $values['consumer_key'], $values['oauth_token_key']);
+  conglomerateclient_update_server($values['sid'], $values['name'], $values['url'], $values['endpoint'], $values['login_consumer_key'], $values['consumer_key'], $values['oauth_token_key']);
 }

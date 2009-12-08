@@ -39,6 +39,12 @@ function conglomerateclient_schema() {
         'length' => 255,
         'not null' => TRUE,
       ),
+      'login_oauth_consumer' => array(
+        'description' => t('The OAuth consumer to use when logging in users'),
+        'type'        => 'varchar',
+        'length'      => 32,
+        'not null'    => TRUE,
+      ),
       'oauth_consumer' => array(
         'description' => t('The OAuth consumer to use when communicating with the server'),
         'type'        => 'varchar',
@@ -165,4 +171,17 @@ function conglomerateclient_schema() {
   );
 
   return $schema;
+}
+
+function conglomerateclient_update_6001() {
+  $ret = array();
+
+  db_add_field($ret, 'conglomerateclient_server', 'login_oauth_consumer', array(
+    'description' => t('The OAuth consumer to use when logging in users'),
+    'type'        => 'varchar',
+    'length'      => 32,
+    'not null'    => TRUE,
+  ));
+
+  return $ret;
 }

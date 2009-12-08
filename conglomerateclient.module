@@ -23,6 +23,14 @@ function conglomerateclient_perm() {
 function conglomerateclient_menu() {
   $menu = array();
 
+  $menu['conglomerate/login'] = array(
+    'title' => 'Login',
+    'file' => 'includes/login.inc',
+    'page callback' => '_conglomerateclient_login',
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+  );
+
   $menu['admin/settings/conglomerateclient'] = array(
     'title'   => 'Conglomerate client settings',
     'description' => 'Administer the settings for the conglomerate client',
@@ -117,7 +125,22 @@ function conglomerateclient_views_api() {
  * Implementation of hook_oauth_common_authorized().
  */
 function conglomerateclient_oauth_common_authorized($consumer_token, $access_token, $request_token) {
-  if (user_access('adminster conglomerate client')) {
+  if ($_SESSION['conglomerate_login_request_key'] == $request_token->key) {
+    $res = db_query("SELECT * FROM {conglomerateclient_server}
+      WHERE login_oauth_consumer='%s'", array(
+        ':login_oauth_consumer' => $consumer_token->key,
+      ));
+    $login_server = db_fetch_array($res);
+    if ($login_server) {
+      require_once('includes/login.inc');
+      $auth = new RestClientOAuth($consumer_token, $access_token, new OAuthSignatureMethod_HMAC('sha1'));
+      $client = new RestClient($auth, new RestClientBaseFormatter(RestClientBaseFormatter::FORMAT_PHP));
+
+      $external_user = (array)$client->post(sprintf('%slogin-api/user/info.php', $consumer_token->provider_url), array());
+      _conglomerateclient_login_external_user($external_user);
+    }
+  }
+  else if (user_access('adminster conglomerate client')) {
     $res = db_query("SELECT * FROM {conglomerateclient_server}
       WHERE oauth_consumer='%s'", array(
         ':oauth_consumer' => $consumer_token->key,
@@ -227,18 +250,21 @@ function conglomerateclient_add_server($name, $url, $endpoint, $consumer_key, $a
  *  A url to the server. Typically to the front page.
  * @param string $endpoint
  *  The endpoint for the api on the server.
+ * @param string $login_consumer_key
+ *  The key for the consumer to use when logging in users.
  * @param string $consumer_key
  *  The key for the consumer to use when communicating with the server.
  * @param string $access_key
  *  The key for the access token to use when communicating with the server.
  * @return void
  */
-function conglomerateclient_update_server($sid, $name, $url, $endpoint, $consumer_key, $access_key) {
+function conglomerateclient_update_server($sid, $name, $url, $endpoint, $login_consumer_key, $consumer_key, $access_key) {
   $values = array(
     'sid' => $sid,
     'name' => $name,
     'url' => $url,
     'endpoint' => $endpoint,
+    'login_oauth_consumer' => $login_consumer_key,
     'oauth_consumer' => $consumer_key,
     'oauth_token_key' => $access_key,
   );
