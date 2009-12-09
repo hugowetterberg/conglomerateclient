@@ -86,6 +86,26 @@ function conglomerateclient_menu() {
   return $menu;
 }
 
+function conglomerateclient_form_user_login_alter(&$form, $form_state) {
+  $sid = variable_get('conglomerateclient_login_server', 1);
+  $servers = conglomerateclient_get_servers();
+
+  if (!empty($servers[$sid])) {
+    $server = $servers[$sid];
+    if (!empty($server['login_oauth_consumer'])) {
+      $form['conglomerate_login'] = array(
+        '#value' => l(t('Log in using !name', array(
+          '!name' => $server['name'],
+        )), 'conglomerate/login'),
+        '#prefix' => '<p class="conglomerate-login-link">',
+        '#suffix' => '</p>',
+        '#weight' => -10,
+      );
+    }
+  }
+
+}
+
 function _conglomerateclient_server_name_callback($sid, $title = NULL) {
   $servers = conglomerateclient_get_servers();
   if (isset($servers[$sid])) {
@@ -220,6 +240,8 @@ function _conglomerateclient_admin_export_server($form_state, $sid) {
  *  A url to the server. Typically to the front page.
  * @param string $endpoint
  *  The endpoint for the api on the server.
+ * @param string $login_consumer_key
+ *  The key for the consumer to use when logging in users.
  * @param string $consumer_key
  *  The key for the consumer to use when communicating with the server.
  * @param string $access_key
@@ -227,11 +249,12 @@ function _conglomerateclient_admin_export_server($form_state, $sid) {
  * @return int
  *  The id of the created server
  */
-function conglomerateclient_add_server($name, $url, $endpoint, $consumer_key, $access_key) {
+function conglomerateclient_add_server($name, $url, $endpoint, $login_consumer_key, $consumer_key, $access_key) {
   $values = array(
     'name' => $name,
     'url' => $url,
     'endpoint' => $endpoint,
+    'login_oauth_consumer' => $login_consumer_key,
     'oauth_consumer' => $consumer_key,
     'oauth_token_key' => $access_key,
   );
