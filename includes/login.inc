@@ -35,6 +35,7 @@ function _conglomerateclient_login_external_user($external_user) {
       'pass' => user_password(32),
     ) + $external_user;
     unset($internal['uid']);
+    unset($internal['roles']);
 
     // Save the user and add a entry for the external user
     $user = user_save((object)$internal, $internal);
