@@ -83,12 +83,6 @@ function conglomerateclient_menu() {
     'type'    => MENU_CALLBACK,
   );
 
-  $menu['conglomerate/test'] = array(
-    'page callback' => '_conglomerateclient_upload_roles',
-    'access arguments' => array('access content'),
-    'type' => MENU_CALLBACK,
-  );
-
   return $menu;
 }
 
