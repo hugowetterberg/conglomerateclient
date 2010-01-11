@@ -83,6 +83,12 @@ function conglomerateclient_menu() {
     'type'    => MENU_CALLBACK,
   );
 
+  $menu['conglomerate/test'] = array(
+    'page callback' => '_conglomerateclient_upload_roles',
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+  );
+
   return $menu;
 }
 
@@ -795,4 +801,42 @@ function _conglomerateclient_credentials($server) {
   }
 
   return $credentials;
+}
+
+/**
+ * Implementation of Hook_User().
+ */
+function conglomerateclient_user($op, &$edit, &$account, $category = NULL) {
+  if ($op == 'after_update') {
+    _conglomerateclient_upload_roles($account->uid, FALSE);
+  }
+  else if ($op =='delete') {
+    _conglomerateclient_upload_roles($account->uid, TRUE);
+  }
+}
+
+/**
+ * Uploads user roles to the main server
+ */
+function _conglomerateclient_upload_roles($uid, $delete=FALSE) {
+  // Set up OAuth
+  module_load_include('php', 'oauth_common', 'lib/OAuth');
+  $servers = conglomerateclient_get_servers();
+  $server = $servers[variable_get('conglomerateclient_login_server', 1)];
+  $auth = new RestClientOAuth(DrupalOAuthConsumerToken::load($server['oauth_consumer']), DrupalOAuthToken::load($server['oauth_token_key']), new OAuthSignatureMethod_HMAC_SHA1());
+  $client = new RestClient($auth, new RestClientBaseFormatter());
+
+  // Get external ID
+  $userskane = db_query('SELECT euid FROM {users_skane} WHERE uid=%d LIMIT 1', $uid);
+  $userskane = db_fetch_object($userskane);
+  $data['euid'] = $userskane->euid;
+  $data['oauth'] = $server['oauth_consumer'];
+
+  $user = user_load($uid);
+
+  // Get roles, send empty array if user should be removed
+  $data['roles'] = $delete ? serialize(array()) : serialize($user->roles);
+
+  // Tell server to delete/update roles
+  $response = $client->post($server['endpoint'] . '/user/roleUpdate.php', $data);
 }
