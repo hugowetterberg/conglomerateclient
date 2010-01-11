@@ -814,7 +814,8 @@ function conglomerateclient_user($op, &$edit, &$account, $category = NULL) {
  */
 function _conglomerateclient_upload_roles($uid, $delete=FALSE) {
   // Set up OAuth
-  module_load_include('php', 'oauth_common', 'lib/OAuth');
+  //module_load_include('php', 'oauth_common', 'lib/OAuth');
+  include_once('sites/all/modules/_skane/oath_common/lib/OAuth.php');
   $servers = conglomerateclient_get_servers();
   $server = $servers[variable_get('conglomerateclient_login_server', 1)];
   $auth = new RestClientOAuth(DrupalOAuthConsumerToken::load($server['oauth_consumer']), DrupalOAuthToken::load($server['oauth_token_key']), new OAuthSignatureMethod_HMAC_SHA1());
