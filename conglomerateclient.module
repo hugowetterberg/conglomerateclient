@@ -838,5 +838,14 @@ function _conglomerateclient_upload_roles($uid, $delete=FALSE) {
   $data['roles'] = $delete ? serialize(array()) : serialize($user->roles);
 
   // Tell server to delete/update roles
+  $maxTries = 2;
+  $tries = 0;
   $response = $client->post($server['endpoint'] . '/user/roleUpdate.php', $data);
+  while ($response->error === TRUE) {
+    $tries++;
+    if ($tries >= $maxTries) {
+      break;
+    }
+    $response = $client->post($server['endpoint'] . '/user/roleUpdate.php', $data);
+  }
 }
