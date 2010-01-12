@@ -801,12 +801,12 @@ function _conglomerateclient_credentials($server) {
  * Implementation of Hook_User().
  */
 function conglomerateclient_user($op, &$edit, &$account, $category = NULL) {
-  if ($op == 'after_update') {
-    _conglomerateclient_upload_roles($account->uid, FALSE);
-  }
-  else if ($op =='delete') {
-    _conglomerateclient_upload_roles($account->uid, TRUE);
-  }
+  // if ($op == 'after_update') {
+  //   _conglomerateclient_upload_roles($account->uid, FALSE);
+  // }
+  // else if ($op =='delete') {
+  //   _conglomerateclient_upload_roles($account->uid, TRUE);
+  // }
 }
 
 /**
