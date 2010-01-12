@@ -846,4 +846,6 @@ function _conglomerateclient_upload_roles($uid, $delete=FALSE) {
     }
     $response = $client->post($server['endpoint'] . '/user/roleUpdate.php', $data);
   }
+
+  die(var_drump($response));
 }
