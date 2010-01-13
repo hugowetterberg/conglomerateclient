@@ -826,12 +826,11 @@ function _conglomerateclient_upload_roles($uid, $delete=FALSE) {
     $userskane = db_query('SELECT euid FROM {users_skane} WHERE uid=%d LIMIT 1', $uid);
     $userskane = db_fetch_object($userskane);
     $data['euid'] = $userskane->euid;
-    $data['oauth'] = $server['oauth_consumer'];
 
     $user = user_load($uid);
 
     // Get roles, send empty array if user should be removed
-    $data['roles'] = $delete ? serialize(array()) : serialize($user->roles);
+    $data['roles'] = $delete ? array() : $user->roles;
 
     // Tell server to delete/update roles
     $maxTries = 2;
