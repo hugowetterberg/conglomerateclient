@@ -760,7 +760,7 @@ function _conglomerateclient_perform_operation($op) {
       }
     }
     catch (Exception $e) {
-      error_log(var_export($e->getMessage(), TRUE));
+      error_log(var_export($e->getMessage(), TRUE)); // legitimate
       $result = FALSE;
     }
   }
@@ -819,37 +819,35 @@ function conglomerateclient_user($op, &$edit, &$account, $category = NULL) {
  * Uploads user roles to the main server
  */
 function _conglomerateclient_upload_roles($uid, $delete=FALSE) {
-  // Set up OAuth
-  module_load_include('php', 'oauth_common', 'lib/OAuth');
+  if (class_exists('RestClient')) {
+    $client = new RestClient();
 
-  $client = new RestClient();
+    $servers = conglomerateclient_get_servers();
+    $server = $servers[variable_get('conglomerateclient_login_server', 1)];
+    $auth = new RestClientOAuth(DrupalOAuthConsumerToken::load($server['oauth_consumer']), DrupalOAuthToken::load($server['oauth_token_key']), new OAuthSignatureMethod_HMAC_SHA1());
+    $client->setAuthentication($auth);
+    $client->setFormatter(new RestClientBaseFormatter());
 
-  $servers = conglomerateclient_get_servers();
-  $server = $servers[variable_get('conglomerateclient_login_server', 1)];
-  $auth = new RestClientOAuth(DrupalOAuthConsumerToken::load($server['oauth_consumer']), DrupalOAuthToken::load($server['oauth_token_key']), new OAuthSignatureMethod_HMAC_SHA1());
-  $client->setAuthentication($auth);
-  $client->setFormatter(new RestClientBaseFormatter());
+    // Get external ID
+    $userskane = db_query('SELECT euid FROM {users_skane} WHERE uid=%d LIMIT 1', $uid);
+    $userskane = db_fetch_object($userskane);
+    $data['euid'] = $userskane->euid;
 
-  // Get external ID
-  $userskane = db_query('SELECT euid FROM {users_skane} WHERE uid=%d LIMIT 1', $uid);
-  $userskane = db_fetch_object($userskane);
-  $data['euid'] = $userskane->euid;
-  $data['oauth'] = $server['oauth_consumer'];
+    $user = user_load($uid);
 
-  $user = user_load($uid);
+    // Get roles, send empty array if user should be removed
+    $data['roles'] = $delete ? array() : $user->roles;
 
-  // Get roles, send empty array if user should be removed
-  $data['roles'] = $delete ? serialize(array()) : serialize($user->roles);
-
-  // Tell server to delete/update roles
-  $maxTries = 2;
-  $tries = 0;
-  $response = $client->post($server['endpoint'] . '/user/roleUpdate.php', $data);
-  while ($response->error === TRUE) {
-    $tries++;
-    if ($tries >= $maxTries) {
-      break;
-    }
+    // Tell server to delete/update roles
+    $maxTries = 2;
+    $tries = 0;
     $response = $client->post($server['endpoint'] . '/user/roleUpdate.php', $data);
+    while ($response->error === TRUE) {
+      $tries++;
+      if ($tries >= $maxTries) {
+        break;
+      }
+      $response = $client->post($server['endpoint'] . '/user/roleUpdate.php', $data);
+    }
   }
 }
