@@ -849,9 +849,5 @@ function _conglomerateclient_upload_roles($uid, $delete=FALSE) {
       }
       $response = $client->post($server['endpoint'] . '/user/roleUpdate.php', $data);
     }
-
-    if(function_exists('drush_log')) {
-      drush_log(var_dump($response, 1));
-    }
   }
 }
