@@ -851,7 +851,7 @@ function _conglomerateclient_upload_roles($uid, $delete=FALSE) {
     }
 
     if(function_exists('drush_log')) {
-      drush_log(print_r($response, 1));
+      drush_log(var_dump($response, 1));
     }
   }
 }
