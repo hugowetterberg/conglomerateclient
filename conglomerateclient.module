@@ -417,6 +417,12 @@ function conglomerateclient_cron() {
   $dirty = conglomerateclient_get_dirty_nodes($max_updates);
   conglomerateclient_process_nodes($dirty);
   conglomerateclient_sync_nodes();
+
+  // For all users; upload roles to main server
+  $users = db_query('SELECT uid FROM {users}');
+  while ($user = db_fetch_object($users)) {
+    _conglomerateclient_upload_roles($users->uid, FALSE);
+  }
 }
 
 /**
@@ -812,17 +818,6 @@ function conglomerateclient_user($op, &$edit, &$account, $category = NULL) {
     case 'delete':
       _conglomerateclient_upload_roles($account->uid, TRUE);
       break;
-  }
-}
-
-/**
- * Implementation of hook_cron().
- */
-function conglomerateclient_cron() {
-  // For all users; upload roles to main server
-  $users = db_query('SELECT uid FROM {users}');
-  while ($user = db_fetch_object($users)) {
-    _conglomerateclient_upload_roles($users->uid, FALSE);
   }
 }
 
