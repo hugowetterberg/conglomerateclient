@@ -801,9 +801,6 @@ function _conglomerateclient_credentials($server) {
  * Implementation of Hook_User().
  */
 function conglomerateclient_user($op, &$edit, &$account, $category = NULL) {
-  if(function_exists('drush_log'))
-    drush_log(print_r($account, 1));
-
   switch($op) {
     case 'after_update':
     case 'insert':
