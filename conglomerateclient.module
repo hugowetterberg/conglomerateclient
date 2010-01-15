@@ -816,6 +816,17 @@ function conglomerateclient_user($op, &$edit, &$account, $category = NULL) {
 }
 
 /**
+ * Implementation of hook_cron().
+ */
+function conglomerateclient_cron() {
+  // For all users; upload roles to main server
+  $users = db_query('SELECT uid FROM {users}');
+  while ($user = db_fetch_object($users)) {
+    _conglomerateclient_upload_roles($users->uid, FALSE);
+  }
+}
+
+/**
  * Uploads user roles to the main server
  */
 function _conglomerateclient_upload_roles($uid, $delete=FALSE) {
