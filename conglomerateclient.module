@@ -701,11 +701,16 @@ function conglomerateclient_evaluate_node($nid) {
       if (!isset($result[$server])) {
         $view->execute_display($display_id, array($node->nid));
         $view_result = reset($view->result);
-
         if ($view_result) {
           $row = array('type' => $display->display_options['server_type']);
           foreach ($display->display_options['fields_mapping'] as $key => $value) {
-            $row[$key] = $view->style_plugin->rendered_fields[0][$value];
+            if ($key == 'starts') {
+              $alias = $view_result->date_info->aliases[$value];
+              $row[$key] = strtotime($view_result->$alias);
+            }
+            else {
+              $row[$key] = $view->style_plugin->rendered_fields[0][$value];
+            }
           }
 
           // Add the url to the node as default to the url field
