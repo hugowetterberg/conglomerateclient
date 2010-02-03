@@ -322,60 +322,38 @@ function _conglomerateclient_admin_edit_server_submit($form, &$form_state) {
   $login_consumer = DrupalOAuthConsumerToken::load($server['login_oauth_consumer']);
   $access = DrupalOAuthToken::load($server['oauth_token_key']);
 
-  /**
-   * Check consumer token
-   */
-  // Key has changed, create new, delete old
-  if ($consumer->key !== $values['consumer_key']) {
+  // Delete previous consumer token
+  if ($consumer) {
     $consumer->delete();
-    // Create new consumer token
+  }
+  // Create new consumer token
+  if (!empty($values['consumer_key'])) {
     $consumer = new DrupalOAuthConsumerToken($values['consumer_key'], $values['consumer_secret'], array(
       'provider_url' => $values['url'],
     ));
     $consumer->write();
   }
-  // Secret has changed, key has not, just update
-  else if ($consumer->secret !== $values['consumer_secret']) {
-    $consumer->secret = $values['consumer_secret'];
-    $consumer->provider_url = $values['url'];
-    $consumer->write(TRUE);
-  }
 
-  // Key has changed, create new, delete old
-  if (!$login_consumer || $login_consumer->key !== $values['login_consumer_key']) {
-    if ($login_consumer) {
-      $login_consumer->delete();
-    }
-    // Create new login_consumer token
+  // Delete old login cosumer token
+  if ($login_consumer) {
+    $login_consumer->delete();
+  }
+  if (!empty($values['login_consumer_key'])) {
+    // Create new login consumer token
     $login_consumer = new DrupalOAuthConsumerToken($values['login_consumer_key'], $values['login_consumer_secret'], array(
       'provider_url' => $values['url'],
     ));
     $login_consumer->write();
   }
-  // Secret has changed, key has not, just update
-  else if ($login_consumer->secret !== $values['login_consumer_secret']) {
-    $login_consumer->secret = $values['login_consumer_secret'];
-    $login_consumer->provider_url = $values['url'];
-    $login_consumer->write(TRUE);
-  }
 
-  /**
-   * Check access token
-   */
-  // Key has changed, create new, delete old
-  if (!$access || $access->key !== $values['access_key']) {
-    if ($access) {
-      $access->delete();
-    }
-    
+  // Delete the old access token
+  if ($access) {
+    $access->delete();
+  }
+  if (!empty($values['access_key'])) {
     // Create new access token
     $a_token = new DrupalOAuthToken($values['access_key'], $values['access_secret']);
     $a_token->write();
-  }
-  // Secret has changed, key has not, just update
-  else if ($access->secret !== $values['access_secret']) {
-    $access->secret = $values['access_secret'];
-    $access->write(TRUE);
   }
 
   // Update server
