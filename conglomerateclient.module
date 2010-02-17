@@ -538,6 +538,130 @@ function conglomerateclient_queue_operation($nid, $sid, $operation, $data) {
   drupal_write_record('conglomerateclient_queue', $values);
 }
 
+/**
+ * Implementation of hook_block().
+ */
+function conglomerateclient_block($op = 'list', $delta = 0, $edit = array()) {
+  $queries = array(
+    'nearby' => array(
+      'title' => t('Nearby'),
+      'info' => t('Conglomerate Nearby'),
+      'query' => array(
+        'im_simple_geo_area' => 220,
+        'type' => array(
+          '#type' => 'aggregate',
+          '#operator' => 'or',
+          'values' => array('event','news','location'),
+        )
+      ),
+    ),
+    'nearby_osterlen' => array(
+      'title' => t('Österlen pictures'),
+      'info' => t('Conglomerate Österlen pictures'),
+      'query' => array(
+        'tid' => 211,
+      )
+    )
+  );
+  switch ($op) {
+
+    case 'list':
+      $blocks = array();
+      foreach($queries as $key => $q) {
+        $blocks[$key] = array(
+          'info' => $q['info'],
+          'cache' => BLOCK_CACHE_GLOBAL,
+        );
+      }
+      return $blocks;
+
+    case 'configure':
+      $form = array();
+      return $form;
+
+    case 'save':
+      break;
+
+    case 'view':
+      $block = array();
+
+      if (!empty($queries[$delta])) {
+        $block['subject'] = $queries[$delta]['title'];
+        $block['content'] = _conglomerateclient_solrblock($queries[$delta]['query']);
+      }
+
+      return $block;
+  }
+}
+
+function _conglomerateclient_solrblock($query) {
+  $credentials = _conglomerateclient_credentials(1);
+
+  if ($credentials) {
+    $server = $credentials['server'];
+    $server['endpoint'] = 'http://goodold.net/api';
+    $auth = new RestClientOAuth($credentials['consumer']);
+    $client = new RestClient($auth, new RestClientBaseFormatter());
+
+    $area = variable_get('conglomerateclient_area_nid', 220);
+
+    $res = $client->get($server['endpoint'] . '/search.php', array(
+      'query' => conglomerateclient_query($query),
+      'fields' => 'title,type,ss_node_page_url',
+      'facets' => 'tid,type',
+    ));
+
+    $links = array();
+    foreach ($res['items'] as $content) {
+      $links[] = array(
+        'title' => $content['title'],
+        'href' => $content['ss_node_page_url'],
+      );
+    }
+    return theme('links', $links);
+  }
+}
+
+function conglomerateclient_query($def) {
+  return _conglomerateclient_qb(NULL, $def);
+}
+
+function _conglomerateclient_qb($key, $def) {
+  $types = array(
+    'aggregate' => '_conglomerateclient_qb_aggregate',
+  );
+  $c = array();
+  foreach (element_children($def) as $k) {
+    $cdef = $def[$k];
+    if (isset($cdef['#type']) && !empty($types[$cdef['#type']])) {
+      $c[] = call_user_func($types[$cdef['#type']], $k, $cdef);
+    }
+    else if (is_array($cdef)) {
+      $c[] = _conglomerateclient_qb($k, $cdef);
+    }
+    else {
+      $c[] = $k . ':' . $def[$k];
+    }
+  }
+  return _conglomerateclient_qb_join($def, $c);
+}
+
+function _conglomerateclient_qb_aggregate($key, $def) {
+  $q = array();
+  foreach ($def['values'] as $v) {
+    $q[] = $key . ':' . $v;
+  }
+  return _conglomerateclient_qb_join($def, $q);
+}
+
+function _conglomerateclient_qb_join($def, $values) {
+  $op = ' AND ';
+  if ($def['#operator'] == 'or') {
+    $op = ' OR ';
+  }
+  return '(' . join($values, $op) . ')';
+}
+
 function conglomerateclient_sync_nodes($nodes=array()) {
   if (!empty($nodes)) {
     $placeholders = db_placeholders($nodes);

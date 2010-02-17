@@ -62,6 +62,8 @@ class conglomerateclient_plugin_display_sync extends views_plugin_display {
       'url' => t('URL'),
       'language' => t('Language'),
       'comments' => t('Comments'),
+      'votes' => t('Votes'),
+      'rating' => t('Rating'),
     );
 
     switch ($server_type) {
