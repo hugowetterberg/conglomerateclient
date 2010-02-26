@@ -636,11 +636,18 @@ function conglomerateclient_sync_nodes($nodes=array()) {
  * @return void
  */
 function _conglomerateclient_compress_node_ops(&$ops) {
+  $opc = count($ops);
+  if ($opc > 1 && $ops[0]['operation'] == 'create' && $ops[$opc-1]['operation'] == 'delete') {
+    array_splice($ops, 0, $opc);
+    return;
+  }
+
   $last_op = FALSE;
   for ($i=0; $i<count($ops); $i++) {
     if ($ops[$i]['operation'] == 'delete' || $ops[$i]['operation'] == 'update') {
       if ($last_op == 'update') {
-        $ops[$i-1] = NULL;
+        array_splice($ops, $i-1, 1);
+        $i--;
       }
     }
     $last_op = $ops[$i]['operation'];
