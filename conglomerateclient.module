@@ -637,31 +637,34 @@ function _conglomerateclient_solrblock($query) {
       foreach ($block['terms'] as $term) {
         $query['tid']['values'][] = $term[0];
       }
+      try {
+        $res = $client->get($server['endpoint'] . '/search.php', array(
+          'query' => conglomerateclient_query($query),
+          'fields' => 'title,ss_node_page_url,ss_node_image_url',
+          'inside_area' => 'yes',
+        ));
+        $links = array();
+        foreach ($res['items'] as $node) {
+          if (!isset($title_lookup[$node['title']])) {
+            $links[] = array(
+              'title' => $node['title'],
+              'href' => $node['ss_node_page_url'],
+              'image' => $node['ss_node_image_url'],
+            );
+            $title_lookup[$node['title']] = TRUE;
+          }
+        }
+        if (!empty($links)) {
+          // Get us a even count of items.
+          if (count($links) > 1 && count($links) % 2) {
+            array_splice($links, count($links)-1, 2);
+          }
 
-      $res = $client->get($server['endpoint'] . '/search.php', array(
-        'query' => conglomerateclient_query($query),
-        'fields' => 'title,ss_node_page_url,ss_node_image_url',
-        'inside_area' => 'yes',
-      ));
-      $links = array();
-      foreach ($res['items'] as $node) {
-        if (!isset($title_lookup[$node['title']])) {
-          $links[] = array(
-            'title' => $node['title'],
-            'href' => $node['ss_node_page_url'],
-            'image' => $node['ss_node_image_url'],
-          );
-          $title_lookup[$node['title']] = TRUE;
+          $content .= '<h3>' . $block['title'] . '</h3>';
+          $content .= theme('conglomerate_nearby_links', $links);
         }
       }
-      if (!empty($links)) {
-        // Get us a even count of items.
-        if (count($links) > 1 && count($links) % 2) {
-          array_splice($links, count($links)-1, 2);
-        }
-
-        $content .= '<h3>' . $block['title'] . '</h3>';
-        $content .= theme('conglomerate_nearby_links', $links);
+      catch (Exception $e) {
       }
     }
 
