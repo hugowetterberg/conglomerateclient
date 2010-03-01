@@ -13,9 +13,7 @@ function _conglomerateclient_login() {
 
   $_SESSION['conglomerate_login_request_key'] = $request_token->key;
   $_SESSION['conglomerate_login_request_secret'] = $request_token->secret;
-
-  header('Location: ' . $auth_url);
-  exit;
+  drupal_goto($auth_url);
 }
 
 function _conglomerateclient_login_external_user($external_user) {
