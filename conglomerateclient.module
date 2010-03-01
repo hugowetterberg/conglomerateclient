@@ -128,6 +128,14 @@ function conglomerateclient_theme($existing, $type, $theme, $path) {
     ),
   );
 
+  $themes['conglomerate_nearby_links'] = array(
+    'template' => 'conglomerate_nearby_links',
+    'path' => $path . '/templates',
+    'arguments' => array(
+      'items' => array(),
+    ),
+  );
+
   return $themes;
 }
 
@@ -542,37 +550,16 @@ function conglomerateclient_queue_operation($nid, $sid, $operation, $data) {
  * Implementation of hook_block().
  */
 function conglomerateclient_block($op = 'list', $delta = 0, $edit = array()) {
-  $queries = array(
-    'nearby' => array(
-      'title' => t('Nearby'),
-      'info' => t('Conglomerate Nearby'),
-      'query' => array(
-        'im_simple_geo_area' => 220,
-        'type' => array(
-          '#type' => 'aggregate',
-          '#operator' => 'or',
-          'values' => array('event','news','location'),
-        )
-      ),
-    ),
-    'nearby_osterlen' => array(
-      'title' => t('Österlen pictures'),
-      'info' => t('Conglomerate Österlen pictures'),
-      'query' => array(
-        'tid' => 211,
-      )
-    )
-  );
+  global $language;
+
   switch ($op) {
 
     case 'list':
       $blocks = array();
-      foreach($queries as $key => $q) {
-        $blocks[$key] = array(
-          'info' => $q['info'],
-          'cache' => BLOCK_CACHE_GLOBAL,
-        );
-      }
+      $blocks['nearby'] = array(
+        'info' => t('Nearby'),
+        'cache' => BLOCK_CACHE_GLOBAL,
+      );
       return $blocks;
 
     case 'configure':
@@ -585,13 +572,41 @@ function conglomerateclient_block($op = 'list', $delta = 0, $edit = array()) {
     case 'view':
       $block = array();
 
-      if (!empty($queries[$delta])) {
-        $block['subject'] = $queries[$delta]['title'];
-        $block['content'] = _conglomerateclient_solrblock($queries[$delta]['query']);
+      switch ($delta) {
+        case 'nearby':
+          $block['subject'] = $queries[$delta]['title'];
+          $block['content'] = _conglomerateclient_solrblock($queries[$delta]['query']);
+          break;
       }
 
       return $block;
   }
+}
+
+function conglomerateclient_search_blocks() {
+  global $language;
+  $cached = cache_get('conglomerateclient:search_blocks:' . $language->language);
+  if (FALSE && $cached && $cached->data) {
+    $blocks = $cached->data;
+  }
+  else {
+    $blocks = array();
+    $credentials = _conglomerateclient_credentials(1);
+
+    if ($credentials) {
+      $server = $credentials['server'];
+      $auth = new RestClientOAuth($credentials['consumer']);
+      $client = new RestClient($auth, new RestClientBaseFormatter());
+
+      $blocks = $res = $client->get($server['endpoint'] . '/block.php', array(
+        'language' => $language->language,
+      ));
+    }
+
+    cache_set('conglomerateclient:search_blocks:' . $language->language, $blocks, 'cache', strtotime('+1 hour'));
+  }
+
+  return $blocks;
 }
 
 function _conglomerateclient_solrblock($query) {
@@ -599,26 +614,58 @@ function _conglomerateclient_solrblock($query) {
 
   if ($credentials) {
     $server = $credentials['server'];
-    $server['endpoint'] = 'http://goodold.net/api';
     $auth = new RestClientOAuth($credentials['consumer']);
     $client = new RestClient($auth, new RestClientBaseFormatter());
 
-    $area = variable_get('conglomerateclient_area_nid', 220);
+    $blocks = conglomerateclient_search_blocks();
+    $content = '';
 
-    $res = $client->get($server['endpoint'] . '/search.php', array(
-      'query' => conglomerateclient_query($query),
-      'fields' => 'title,type,ss_node_page_url',
-      'facets' => 'tid,type',
-    ));
-
-    $links = array();
-    foreach ($res['items'] as $content) {
-      $links[] = array(
-        'title' => $content['title'],
-        'href' => $content['ss_node_page_url'],
+    $title_lookup = array();
+    foreach ($blocks as $block) {
+      $query = array(
+        'type' => array(
+          '#type' => 'aggregate',
+          '#operator' => 'or',
+          'values' => array('event','news','location'),
+        ),
+        'tid' => array(
+          '#type' => 'aggregate',
+          '#operator' => 'and',
+        )
       );
+
+      foreach ($block['terms'] as $term) {
+        $query['tid']['values'][] = $term[0];
+      }
+
+      $res = $client->get($server['endpoint'] . '/search.php', array(
+        'query' => conglomerateclient_query($query),
+        'fields' => 'title,ss_node_page_url,ss_node_image_url',
+        'inside_area' => 'yes',
+      ));
+      $links = array();
+      foreach ($res['items'] as $node) {
+        if (!isset($title_lookup[$node['title']])) {
+          $links[] = array(
+            'title' => $node['title'],
+            'href' => $node['ss_node_page_url'],
+            'image' => $node['ss_node_image_url'],
+          );
+          $title_lookup[$node['title']] = TRUE;
+        }
+      }
+      if (!empty($links)) {
+        // Get us a even count of items.
+        if (count($links) > 1 && count($links) % 2) {
+          array_splice($links, count($links)-1, 2);
+        }
+
+        $content .= '<h3>' . $block['title'] . '</h3>';
+        $content .= theme('conglomerate_nearby_links', $links);
+      }
     }
-    return theme('links', $links);
+
+    return $content;
   }
 }
 
