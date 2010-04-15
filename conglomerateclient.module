@@ -136,6 +136,11 @@ function conglomerateclient_theme($existing, $type, $theme, $path) {
     ),
   );
 
+  $themes['conglomerateclient_formatter_export_time'] = array(
+    'arguments' => array('element' => NULL),
+    'function' => 'theme_conglomerateclient_formatter_export_time',
+  );
+
   return $themes;
 }
 
@@ -886,8 +891,15 @@ function conglomerateclient_evaluate_node($nid) {
           $row = array('type' => $display->display_options['server_type']);
           foreach ($display->display_options['fields_mapping'] as $key => $value) {
             if ($key == 'starts') {
-              $alias = $view_result->date_info->aliases[$value];
-              $row[$key] = strtotime($view_result->$alias);
+              $rendered = $view->style_plugin->rendered_fields[0][$value];
+              $captured = array();
+              $timestamps = array();
+              if (preg_match_all('/\[{2}(\d+)\]{2}/', $rendered, $captured)) {
+                foreach ($captured[1] as $match) {
+                  $timestamps[] = $match;
+                }
+              }
+              $row[$key] = $timestamps;
             }
             else {
               $row[$key] = $view->style_plugin->rendered_fields[0][$value];
@@ -904,7 +916,6 @@ function conglomerateclient_evaluate_node($nid) {
           if (empty($row['language'])) {
             $row['language'] = $node->language;
           }
-
           $result[$server] = $row;
         }
       }
@@ -1042,4 +1053,21 @@ function _conglomerateclient_upload_roles($uid, $delete=FALSE) {
       $response = $client->post($server['endpoint'] . '/user/roleUpdate.php', $data);
     }
   }
+}
+
+function conglomerateclient_field_formatter_info() {
+  return array(
+    'export_time' => array(
+      'label' => t('Export time'),
+      'field types' => array('date', 'datestamp', 'datetime'),
+    ),
+  );
+}
+
+/**
+ * Theme function to display showtimes.
+ */
+function theme_conglomerateclient_formatter_export_time($element) {
+  $start_date = strtotime($element['#item']['value']);
+  return '[[' . date('U', $start_date) . ']]';
 }
