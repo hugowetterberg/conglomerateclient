@@ -1042,15 +1042,19 @@ function _conglomerateclient_upload_roles($uid, $delete=FALSE) {
     $data['roles'] = $delete ? array() : $user->roles;
 
     // Tell server to delete/update roles
-    $maxTries = 2;
-    $tries = 0;
-    $response = $client->post($server['endpoint'] . '/user/roleUpdate.php', $data);
-    while ($response->error === TRUE) {
-      $tries++;
-      if ($tries >= $maxTries) {
-        break;
-      }
+    try {
+      $maxTries = 2;
+      $tries = 0;
       $response = $client->post($server['endpoint'] . '/user/roleUpdate.php', $data);
+      while ($response->error === TRUE) {
+        $tries++;
+        if ($tries >= $maxTries) {
+          break;
+        }
+        $response = $client->post($server['endpoint'] . '/user/roleUpdate.php', $data);
+      }
+    } catch (Exception $e) {
+      error_log(var_export($client, TRUE));
     }
   }
 }
