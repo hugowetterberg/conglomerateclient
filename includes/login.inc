@@ -11,9 +11,73 @@ function _conglomerateclient_login() {
   $request_token->write();
   $auth_url = $client->getAuthorizationUrl();
 
+  // Don't allow this page to be cached
+  header("Cache-Control: no-cache, must-revalidate");
+  header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");
+
+  // Regenerate our session and set the info that's needed to continue
+  // the login process when the user returns;
   $_SESSION['conglomerate_login_request_key'] = $request_token->key;
   $_SESSION['conglomerate_login_request_secret'] = $request_token->secret;
-  drupal_goto($auth_url);
+
+  return drupal_get_form('conglomerateclient_login_form', $auth_url, $request_token->key);
+}
+
+function conglomerateclient_login_form($form_state, $auth_url, $key) {
+  $form = array(
+    '#pre_render' => array('conglomerateclient_login_form_pre_render'),
+  );
+
+  $sid = variable_get('conglomerateclient_login_server', 1);
+  $servers = conglomerateclient_get_servers();
+  $server = $servers[$sid];
+
+  $form['authorization_url'] = array(
+    '#type' => 'value',
+    '#value' => $auth_url,
+  );
+
+  $form['request_token_key'] = array(
+    '#type' => 'value',
+    '#value' => $key,
+  );
+
+  $form['log_in'] = array(
+    '#type' => 'item',
+    '#title' => t('Log in'),
+    '#value' => t('You will be sent to @server so that you can be logged in here at @sitename', array(
+      '@server' => $server['url'],
+      '@sitename' => variable_get('site_name', ''),
+    )),
+  );
+
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Log in'),
+  );
+
+  return $form;
+}
+
+function conglomerateclient_login_form_pre_render($form) {
+  drupal_add_js(drupal_get_path('module', 'conglomerateclient') . '/conglomerateclient_auto_submit.js');
+  drupal_add_css(drupal_get_path('module', 'conglomerateclient') . '/conglomerateclient_auto_submit.css');
+  return $form;
+}
+
+function conglomerateclient_login_form_validate($form, $form_state) {
+  $values = $form_state['values'];
+  $sessval = $_SESSION['conglomerate_login_request_key'];
+
+  if (empty($sessval) || $sessval !== $values['request_token_key']) {
+    form_set_error('log_in', t('You must enable cookies in your web-browser to be able to login'));
+  }
+}
+
+function conglomerateclient_login_form_submit($form, $form_state) {
+  $values = $form_state['values'];
+  // Redirect
+  drupal_goto($values['authorization_url']);
 }
 
 function _conglomerateclient_login_external_user($external_user) {

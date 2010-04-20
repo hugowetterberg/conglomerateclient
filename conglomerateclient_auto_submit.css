@@ -1,0 +1,14 @@
+.conglomerateclient-login-submitted {
+  background: url(img/ajax-loader.gif) center center no-repeat;
+}
+
+.conglomerateclient-login-submitted * {
+  display: none;
+}
+
+.conglomerateclient-login-submitted .progress-message {
+  padding-top: 64px;
+  display: block;
+  text-align: center;
+  width: 100%;
+}
