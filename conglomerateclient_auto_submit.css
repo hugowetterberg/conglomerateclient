@@ -2,7 +2,7 @@
   background: url(img/ajax-loader.gif) center center no-repeat;
 }
 
-.conglomerateclient-login-submitted * {
+.conglomerateclient-login-submitted *, #conglomerateclient-login-form.error * {
   display: none;
 }
 

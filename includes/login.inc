@@ -60,6 +60,10 @@ function conglomerateclient_login_form($form_state, $auth_url, $key) {
 }
 
 function conglomerateclient_login_form_pre_render($form) {
+  $fe = form_get_errors();
+  if ($fe) {
+    $form['#attributes']['class'] = 'error';
+  }
   drupal_add_js(drupal_get_path('module', 'conglomerateclient') . '/conglomerateclient_auto_submit.js');
   drupal_add_css(drupal_get_path('module', 'conglomerateclient') . '/conglomerateclient_auto_submit.css');
   return $form;
