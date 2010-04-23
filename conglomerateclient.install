@@ -170,6 +170,22 @@ function conglomerateclient_schema() {
     ),
   );
 
+  $schema['conglomerate_users'] = array(
+    'fields' => array(
+      'uid' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'euid' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('uid'),
+  );
+
   return $schema;
 }
 

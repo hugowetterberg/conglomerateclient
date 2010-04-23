@@ -1035,7 +1035,7 @@ function _conglomerateclient_upload_roles($uid, $delete=FALSE) {
     $client->setFormatter(new RestClientBaseFormatter());
 
     // Get external ID
-    $userskane = db_query('SELECT euid FROM {users_skane} WHERE uid=%d LIMIT 1', $uid);
+    $userskane = db_query('SELECT euid FROM {conglomerate_users} WHERE uid=%d LIMIT 1', $uid);
     $userskane = db_fetch_object($userskane);
     $data['euid'] = $userskane->euid;
 
