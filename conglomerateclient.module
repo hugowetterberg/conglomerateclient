@@ -963,7 +963,10 @@ function _conglomerateclient_perform_operation($op) {
       }
     }
     catch (Exception $e) {
-      error_log(var_export($e->getMessage(), TRUE)); // legitimate
+      watchdog('conglomerateclient', 'An error occured while pushing updates: [@code] @message', array(
+        '@code' => $e->getCode(),
+        '@message' => $e->getMessage(),
+      ), WATCHDOG_ERROR);
       $result = FALSE;
     }
   }
@@ -1054,7 +1057,10 @@ function _conglomerateclient_upload_roles($uid, $delete=FALSE) {
         $response = $client->post($server['endpoint'] . '/user/roleUpdate.php', $data);
       }
     } catch (Exception $e) {
-      error_log(var_export($client, TRUE));
+      watchdog('conglomerateclient', 'An error occured while pushing roles: [@code] @message', array(
+        '@code' => $e->getCode(),
+        '@message' => $e->getMessage(),
+      ), WATCHDOG_ERROR);
     }
   }
 }
