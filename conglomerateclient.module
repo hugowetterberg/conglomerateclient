@@ -563,7 +563,6 @@ function conglomerateclient_block($op = 'list', $delta = 0, $edit = array()) {
       $blocks = array();
       $blocks['nearby'] = array(
         'info' => t('Nearby'),
-        'cache' => BLOCK_CACHE_GLOBAL,
       );
       return $blocks;
 
@@ -579,8 +578,7 @@ function conglomerateclient_block($op = 'list', $delta = 0, $edit = array()) {
 
       switch ($delta) {
         case 'nearby':
-          $block['subject'] = $queries[$delta]['title'];
-          $block['content'] = _conglomerateclient_solrblock($queries[$delta]['query']);
+          $block['content'] = _conglomerateclient_solrblock();
           break;
       }
 
@@ -591,7 +589,7 @@ function conglomerateclient_block($op = 'list', $delta = 0, $edit = array()) {
 function conglomerateclient_search_blocks() {
   global $language;
   $cached = cache_get('conglomerateclient:search_blocks:' . $language->language);
-  if (FALSE && $cached && $cached->data) {
+  if ($cached && $cached->data) {
     $blocks = $cached->data;
   }
   else {
@@ -608,73 +606,87 @@ function conglomerateclient_search_blocks() {
       ));
     }
 
-    cache_set('conglomerateclient:search_blocks:' . $language->language, $blocks, 'cache', strtotime('+1 hour'));
+    cache_set('conglomerateclient:search_blocks:' . $language->language, $blocks, 'cache', strtotime('+10 minute'));
   }
-
   return $blocks;
 }
 
-function _conglomerateclient_solrblock($query) {
-  $credentials = _conglomerateclient_credentials(1);
+function _conglomerateclient_solrblock() {
+  global $language;
+  $content = NULL;
+  $cached = cache_get('conglomerateclient:search_blocks_content:' . $language->language);
 
-  if ($credentials) {
-    $server = $credentials['server'];
-    $auth = new RestClientOAuth($credentials['consumer']);
-    $client = new RestClient($auth, new RestClientBaseFormatter());
+  if ($cached && $cached->data) {
+    $content = $cached->data;
+  }
+  else {
+    $credentials = _conglomerateclient_credentials(1);
+    if ($credentials) {
+      $server = $credentials['server'];
+      $auth = new RestClientOAuth($credentials['consumer']);
+      $client = new RestClient($auth, new RestClientBaseFormatter());
 
-    $blocks = conglomerateclient_search_blocks();
-    $content = '';
+      $blocks = conglomerateclient_search_blocks();
+      $content = '';
 
-    $title_lookup = array();
-    foreach ($blocks as $block) {
-      $query = array(
-        'type' => array(
-          '#type' => 'aggregate',
-          '#operator' => 'or',
-          'values' => array('event','news','location'),
-        ),
-        'tid' => array(
-          '#type' => 'aggregate',
-          '#operator' => 'and',
-        )
-      );
+      $title_lookup = array();
+      foreach ($blocks as $block) {
+        $query = array(
+          'type' => array(
+            '#type' => 'aggregate',
+            '#operator' => 'or',
+            'values' => array('event','news','location'),
+          ),
+          'tid' => array(
+            '#type' => 'aggregate',
+            '#operator' => 'and',
+          ),
+          'language' => $language->language,
+        );
 
-      foreach ($block['terms'] as $term) {
-        $query['tid']['values'][] = $term[0];
-      }
-      try {
-        $res = $client->get($server['endpoint'] . '/search.php', array(
-          'query' => conglomerateclient_query($query),
-          'fields' => 'title,ss_node_page_url,ss_node_image_url',
-          'inside_area' => 'yes',
-        ));
-        $links = array();
-        foreach ($res['items'] as $node) {
-          if (!isset($title_lookup[$node['title']])) {
-            $links[] = array(
-              'title' => $node['title'],
-              'href' => $node['ss_node_page_url'],
-              'image' => $node['ss_node_image_url'],
-            );
-            $title_lookup[$node['title']] = TRUE;
+        foreach ($block['terms'] as $term) {
+          $query['tid']['values'][] = $term[0];
+        }
+        try {
+          $res = $client->get($server['endpoint'] . '/search.php', array(
+            'query' => conglomerateclient_query($query),
+            'fields' => 'title,ss_node_page_url,ss_node_image_url',
+            'inside_area' => 'yes',
+            'sort' => 'created desc',
+            'rows' => 4,
+          ));
+          $links = array();
+          foreach ($res['items'] as $node) {
+            if (!isset($title_lookup[$node['title']])) {
+              $links[] = array(
+                'title' => $node['title'],
+                'href' => $node['ss_node_page_url'],
+                'image' => $node['ss_node_image_url'],
+              );
+              $title_lookup[$node['title']] = TRUE;
+            }
+          }
+          if (!empty($links)) {
+            // Get us a even count of items.
+            if (count($links) > 4) {
+              $links = array_slice($links, 0, 4);
+            }
+            else if (count($links) > 1 && count($links) % 2) {
+              array_splice($links, count($links)-1, 2);
+            }
+
+            $content .= '<h3>' . $block['title'] . '</h3>';
+            $content .= theme('conglomerate_nearby_links', $links);
           }
         }
-        if (!empty($links)) {
-          // Get us a even count of items.
-          if (count($links) > 1 && count($links) % 2) {
-            array_splice($links, count($links)-1, 2);
-          }
-
-          $content .= '<h3>' . $block['title'] . '</h3>';
-          $content .= theme('conglomerate_nearby_links', $links);
+        catch (Exception $e) {
         }
-      }
-      catch (Exception $e) {
       }
     }
-
-    return $content;
+    cache_set('conglomerateclient:search_blocks_content:' . $language->language, $content, 'cache', strtotime('+10 minute'));
   }
+
+  return $content;
 }
 
 function conglomerateclient_query($def) {
@@ -888,7 +900,10 @@ function conglomerateclient_evaluate_node($nid) {
         $view->execute_display($display_id, array($node->nid));
         $view_result = reset($view->result);
         if ($view_result) {
-          $row = array('type' => $display->display_options['server_type']);
+          $row = array(
+            'type' => $display->display_options['server_type'],
+            'fulltext' => '',
+          );
           foreach ($display->display_options['fields_mapping'] as $key => $value) {
             if ($key == 'starts') {
               $rendered = $view->style_plugin->rendered_fields[0][$value];
@@ -916,6 +931,9 @@ function conglomerateclient_evaluate_node($nid) {
           if (empty($row['language'])) {
             $row['language'] = $node->language;
           }
+
+          drupal_alter('conglomerateclient_data', $row, $node);
+
           $result[$server] = $row;
         }
       }
