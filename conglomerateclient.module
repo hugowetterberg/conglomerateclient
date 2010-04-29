@@ -981,7 +981,7 @@ function _conglomerateclient_perform_operation($op) {
       }
     }
     catch (Exception $e) {
-      watchdog('conglomerateclient', 'An error occured while pushing updates: [@code] @message. Response: @reponse', array(
+      watchdog('conglomerateclient', 'An error occured while pushing updates: [@code] @message. Response: @response', array(
         '@code' => $e->getCode(),
         '@message' => $e->getMessage(),
         '@response' => $client->rawResponse,
