@@ -430,12 +430,6 @@ function conglomerateclient_cron() {
   $dirty = conglomerateclient_get_dirty_nodes($max_updates);
   conglomerateclient_process_nodes($dirty);
   conglomerateclient_sync_nodes();
-
-  // For all users; upload roles to main server
-  $users = db_query('SELECT uid FROM {users}');
-  while ($user = db_fetch_object($users)) {
-    _conglomerateclient_upload_roles($users->uid, FALSE);
-  }
 }
 
 /**
@@ -1020,68 +1014,6 @@ function _conglomerateclient_credentials($server) {
   }
 
   return $credentials;
-}
-
-/**
- * Implementation of Hook_User().
- */
-function conglomerateclient_user($op, &$edit, &$account, $category = NULL) {
-  switch($op) {
-    case 'after_update':
-    case 'insert':
-    case 'update':
-    case 'login':
-      _conglomerateclient_upload_roles($account->uid, FALSE);
-      break;
-
-    case 'delete':
-      _conglomerateclient_upload_roles($account->uid, TRUE);
-      break;
-  }
-}
-
-/**
- * Uploads user roles to the main server
- */
-function _conglomerateclient_upload_roles($uid, $delete=FALSE) {
-  if (class_exists('RestClient')) {
-    $client = new RestClient();
-
-    $servers = conglomerateclient_get_servers();
-    $server = $servers[variable_get('conglomerateclient_login_server', 1)];
-    $auth = new RestClientOAuth(DrupalOAuthConsumerToken::load($server['oauth_consumer']), DrupalOAuthToken::load($server['oauth_token_key']), new OAuthSignatureMethod_HMAC_SHA1());
-    $client->setAuthentication($auth);
-    $client->setFormatter(new RestClientBaseFormatter());
-
-    // Get external ID
-    $userskane = db_query('SELECT euid FROM {conglomerate_users} WHERE uid=%d LIMIT 1', $uid);
-    $userskane = db_fetch_object($userskane);
-    $data['euid'] = $userskane->euid;
-
-    $user = user_load($uid);
-
-    // Get roles, send empty array if user should be removed
-    $data['roles'] = $delete ? array() : $user->roles;
-
-    // Tell server to delete/update roles
-    try {
-      $maxTries = 2;
-      $tries = 0;
-      $response = $client->post($server['endpoint'] . '/user/roleUpdate.php', $data);
-      while ($response->error === TRUE) {
-        $tries++;
-        if ($tries >= $maxTries) {
-          break;
-        }
-        $response = $client->post($server['endpoint'] . '/user/roleUpdate.php', $data);
-      }
-    } catch (Exception $e) {
-      watchdog('conglomerateclient', 'An error occured while pushing roles: [@code] @message', array(
-        '@code' => $e->getCode(),
-        '@message' => $e->getMessage(),
-      ), WATCHDOG_ERROR);
-    }
-  }
 }
 
 function conglomerateclient_field_formatter_info() {
