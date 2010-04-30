@@ -903,6 +903,7 @@ function conglomerateclient_evaluate_node($nid) {
           $row = array(
             'type' => $display->display_options['server_type'],
             'fulltext' => '',
+            'metadata' => array(),
           );
           foreach ($display->display_options['fields_mapping'] as $key => $value) {
             if ($key == 'starts') {
