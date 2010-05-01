@@ -457,20 +457,13 @@ function conglomerateclient_mark_node_as_dirty($nid = NULL) {
   if ($nid) {
     // Queue the node so that we can sync it on exit
     $queue[] = $nid;
-    if ($db_type == 'mysql') {
-      // We can do the insert in one statement if we're on mysql
-      db_query("INSERT INTO {conglomerateclient_node_dirty} VALUES(%d)
-        ON DUPLICATE KEY IGNORE", array(':nid' => $nid));
-    }
-    else {
-      // Check if we need to do a insert before adding a dirty flag
-      $exists = db_result(db_query("SELECT COUNT(nid)
-        FROM {conglomerateclient_node_dirty} WHERE nid=%d",array(
-          ':nid' => $nid,
-        )));
-      if (!$exists) {
-        db_query("INSERT INTO {conglomerateclient_node_dirty} VALUES(%d)", array(':nid' => $nid));
-      }
+    // Check if we need to do a insert before adding a dirty flag
+    $exists = db_result(db_query("SELECT COUNT(nid)
+      FROM {conglomerateclient_node_dirty} WHERE nid=%d",array(
+        ':nid' => $nid,
+      )));
+    if (!$exists) {
+      db_query("INSERT INTO {conglomerateclient_node_dirty} VALUES(%d)", array(':nid' => $nid));
     }
   }
 
