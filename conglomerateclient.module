@@ -912,7 +912,7 @@ function conglomerateclient_evaluate_node($nid) {
               $row[$key] = $timestamps;
             }
             else {
-              $row[$key] = $view->style_plugin->rendered_fields[0][$value];
+              $row[$key] = html_entity_decode($view->style_plugin->rendered_fields[0][$value]);
             }
           }
 
@@ -928,6 +928,7 @@ function conglomerateclient_evaluate_node($nid) {
           }
 
           drupal_alter('conglomerateclient_data', $row, $node);
+          $row['fulltext'] = strip_tags(str_replace('</', ' </', $row['fulltext']));
 
           $result[$server] = $row;
         }
