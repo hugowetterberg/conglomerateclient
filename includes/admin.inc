@@ -1,5 +1,17 @@
 <?php
 
+function conglomerateclient_settings_form($form_state) {
+  $form = array();
+
+  $form['conglomerateclient_require_text'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Require text for content'),
+    '#default_value' => variable_get('conglomerateclient_require_text', FALSE),
+  );
+
+  return system_settings_form($form);
+}
+
 function _conglomerateclient_admin_index() {
   $messages = array();
   $messages[] = array(

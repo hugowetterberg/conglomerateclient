@@ -65,6 +65,15 @@ function conglomerateclient_menu() {
     'type' => MENU_LOCAL_TASK,
   );
 
+  $menu['admin/settings/conglomerateclient/settings'] = array(
+    'title' => 'Inställningar',
+    'file' => 'includes/admin.inc',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('conglomerateclient_settings_form'),
+    'access arguments' => array('administer conglomerate client'),
+    'type' => MENU_LOCAL_TASK,
+  );
+
   $menu['admin/settings/conglomerateclient/server/%/export'] = array(
     'title callback' => '_conglomerateclient_server_name_callback',
     'title arguments' => array(4),
@@ -872,6 +881,7 @@ function conglomerateclient_evaluate_node($nid) {
   if (!$node = node_load($nid)) return array();
   $result = array();
 
+  $require_text = variable_get('conglomerateclient_require_text', FALSE);
   $servers = conglomerateclient_get_servers();
 
   $views = conglomerateclient_sync_views($node->type);
@@ -929,7 +939,9 @@ function conglomerateclient_evaluate_node($nid) {
           drupal_alter('conglomerateclient_data', $row, $node);
           $row['fulltext'] = strip_tags(str_replace('</', ' </', $row['fulltext']));
 
-          $result[$server] = $row;
+          if (!$require_text || !empty($row['text'])) {
+            $result[$server] = $row;
+          }
         }
       }
     }
