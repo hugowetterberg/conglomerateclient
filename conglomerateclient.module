@@ -920,6 +920,7 @@ function conglomerateclient_evaluate_node($nid) {
           if (empty($row['url'])) {
             $row['url'] = url('node/' . $node->nid, array(
               'absolute' => TRUE,
+              'language' => $node->language,
             ));
           }
           // Add the node language if not set
