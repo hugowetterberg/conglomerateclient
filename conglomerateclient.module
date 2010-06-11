@@ -359,7 +359,7 @@ function conglomerateclient_get_node_sync_info($nid, $sid = 0) {
  */
 function conglomerateclient_set_node_sync_info($nid, $sid, $eid = 0) {
   $rv = conglomerateclient_get_servers();
-  $current = conglomerateclient_get_node_sync_info($node->nid, $sid);
+  $current = conglomerateclient_get_node_sync_info($nid, $sid);
   $update = empty($current) ? NULL : array('sid', 'nid');
 
   $state = array(
@@ -870,7 +870,7 @@ function conglomerateclient_sync_views($content_type) {
  * Filter node through view to determine if and what to synchronize.
  */
 function conglomerateclient_evaluate_node($nid) {
-  if (!$node = node_load($nid)) return array();
+  if (!$node = node_load($nid, NULL, TRUE)) return array();
   $result = array();
 
   $servers = conglomerateclient_get_servers();
@@ -955,18 +955,16 @@ function _conglomerateclient_perform_operation($op) {
         case 'create':
           $res = $client->post($server['endpoint'] . '/content.php', $data);
           if ($res && isset($res->nid)) {
-            db_query("UPDATE {conglomerateclient_sync_info} SET eid = %d
-              WHERE sid=%d AND nid = %d", array(
-                ':eid' => $res->nid,
-                ':sid' => $op['sid'],
-                ':nid' => $op['nid'],
-              ));
+            conglomerateclient_set_node_sync_info($op['nid'], $op['sid'], $res->nid);
             $result = TRUE;
           }
           break;
         case 'update':
           $res = $client->put($server['endpoint'] . '/content/' . $op['eid'] . '.php', $data);
-          $result = $res && isset($res->nid);
+          if ($res && isset($res->nid)) {
+            conglomerateclient_set_node_sync_info($op['nid'], $op['sid'], $res->nid);
+            $result = TRUE;
+          }
           break;
         case 'delete':
           $res = $client->delete($server['endpoint'] . '/content/' . $op['eid'] . '.php', $data);
